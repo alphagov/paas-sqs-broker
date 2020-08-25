@@ -12,13 +12,13 @@ import (
 	"net/http"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/alphagov/paas-s3-broker/provider"
-	"github.com/alphagov/paas-s3-broker/s3"
+	"github.com/alphagov/paas-sqs-broker/provider"
+	"github.com/alphagov/paas-sqs-broker/sqs"
 	"github.com/alphagov/paas-service-broker-base/broker"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
-	aws_s3 "github.com/aws/aws-sdk-go/service/s3"
+	aws_sqs "github.com/aws/aws-sdk-go/service/sqs"
 )
 
 var configFilePath string
@@ -43,23 +43,23 @@ func main() {
 		log.Fatalf("Error parsing configuration: %v\n", err)
 	}
 
-	s3ClientConfig, err := s3.NewS3ClientConfig(config.Provider)
+	sqsClientConfig, err := sqs.NewSQSClientConfig(config.Provider)
 	if err != nil {
 		log.Fatalf("Error parsing configuration: %v\n", err)
 	}
 
-	logger := lager.NewLogger("s3-service-broker")
+	logger := lager.NewLogger("sqs-service-broker")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, config.API.LagerLogLevel))
 
-	sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(s3ClientConfig.AWSRegion)}))
-	s3Client := s3.NewS3Client(s3ClientConfig, aws_s3.New(sess), iam.New(sess), logger, context.Background())
+	sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
+	sqsClient := sqs.NewSQSClient(sqsClientConfig, aws_sqs.New(sess), iam.New(sess), logger, context.Background())
 
-	s3Provider := provider.NewS3Provider(s3Client)
+	sqsProvider := provider.NewSQSProvider(sqsClient)
 	if err != nil {
-		log.Fatalf("Error creating S3 Provider: %v\n", err)
+		log.Fatalf("Error creating SQS Provider: %v\n", err)
 	}
 
-	serviceBroker, err := broker.New(config, s3Provider, logger)
+	serviceBroker, err := broker.New(config, sqsProvider, logger)
 	if err != nil {
 		log.Fatalf("Error creating service broker: %s", err)
 	}
@@ -70,6 +70,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error listening to port %s: %s", config.API.Port, err)
 	}
-	fmt.Println("S3 Service Broker started on port " + config.API.Port + "...")
+	fmt.Println("SQS Service Broker started on port " + config.API.Port + "...")
 	http.Serve(listener, brokerAPI)
 }
