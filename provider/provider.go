@@ -3,77 +3,59 @@ package provider
 import (
 	"context"
 	"errors"
-	"strings"
 
-	"github.com/alphagov/paas-s3-broker/s3"
 	provideriface "github.com/alphagov/paas-service-broker-base/provider"
+	"github.com/alphagov/paas-sqs-broker/sqs"
 	"github.com/pivotal-cf/brokerapi"
 )
 
-type S3Provider struct {
-	client s3.Client
+type SQSProvider struct {
+	client sqs.Client
 }
 
-func NewS3Provider(s3Client s3.Client) *S3Provider {
-	return &S3Provider{
-		client: s3Client,
+func NewSQSProvider(sqsClient sqs.Client) *SQSProvider {
+	return &SQSProvider{
+		client: sqsClient,
 	}
 }
 
-func (s *S3Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (
+func (s *SQSProvider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (
 	dashboardURL, operationData string, isAsync bool, err error) {
-
-	err = s.client.CreateBucket(provisionData)
 
 	return "", "", false, err
 }
 
-func (s *S3Provider) Deprovision(ctx context.Context, deprovisionData provideriface.DeprovisionData) (
+func (s *SQSProvider) Deprovision(ctx context.Context, deprovisionData provideriface.DeprovisionData) (
 	operationData string, isAsync bool, err error) {
 
-	err = s.client.DeleteBucket(deprovisionData.InstanceID)
-	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchBucket: The specified bucket does not exist") {
-			return "", false, brokerapi.ErrInstanceDoesNotExist
-		}
-	}
 	return "", false, err
 }
 
-func (s *S3Provider) Bind(ctx context.Context, bindData provideriface.BindData) (
+func (s *SQSProvider) Bind(ctx context.Context, bindData provideriface.BindData) (
 	binding brokerapi.Binding, err error) {
-
-	bucketCredentials, err := s.client.AddUserToBucket(bindData)
-	if err != nil {
-		return brokerapi.Binding{}, err
-	}
 
 	return brokerapi.Binding{
 		IsAsync:     false,
-		Credentials: bucketCredentials,
+		Credentials: brokerapi.Binding{},
 	}, nil
 }
 
-func (s *S3Provider) Unbind(ctx context.Context, unbindData provideriface.UnbindData) (
+func (s *SQSProvider) Unbind(ctx context.Context, unbindData provideriface.UnbindData) (
 	unbinding brokerapi.UnbindSpec, err error) {
 
-	err = s.client.RemoveUserFromBucketAndDeleteUser(unbindData.BindingID, unbindData.InstanceID)
-	if err != nil {
-		return brokerapi.UnbindSpec{}, err
-	}
 	return brokerapi.UnbindSpec{
 		IsAsync: false,
 	}, nil
 }
 
-var ErrUpdateNotSupported = errors.New("Updating the S3 bucket is currently not supported")
+var ErrUpdateNotSupported = errors.New("Updating the SQS queue is currently not supported")
 
-func (s *S3Provider) Update(ctx context.Context, updateData provideriface.UpdateData) (
+func (s *SQSProvider) Update(ctx context.Context, updateData provideriface.UpdateData) (
 	operationData string, isAsync bool, err error) {
 	return "", false, ErrUpdateNotSupported
 }
 
-func (s *S3Provider) LastOperation(ctx context.Context, lastOperationData provideriface.LastOperationData) (
+func (s *SQSProvider) LastOperation(ctx context.Context, lastOperationData provideriface.LastOperationData) (
 	state brokerapi.LastOperationState, description string, err error) {
 	return brokerapi.Succeeded, "Last operation polling not required. All operations are synchronous.", nil
 }

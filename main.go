@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -12,13 +11,9 @@ import (
 	"net/http"
 
 	"code.cloudfoundry.org/lager"
+	"github.com/alphagov/paas-service-broker-base/broker"
 	"github.com/alphagov/paas-sqs-broker/provider"
 	"github.com/alphagov/paas-sqs-broker/sqs"
-	"github.com/alphagov/paas-service-broker-base/broker"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
-	aws_sqs "github.com/aws/aws-sdk-go/service/sqs"
 )
 
 var configFilePath string
@@ -43,7 +38,7 @@ func main() {
 		log.Fatalf("Error parsing configuration: %v\n", err)
 	}
 
-	sqsClientConfig, err := sqs.NewSQSClientConfig(config.Provider)
+	_, err = sqs.NewSQSClientConfig(config.Provider)
 	if err != nil {
 		log.Fatalf("Error parsing configuration: %v\n", err)
 	}
@@ -51,8 +46,8 @@ func main() {
 	logger := lager.NewLogger("sqs-service-broker")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, config.API.LagerLogLevel))
 
-	sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
-	sqsClient := sqs.NewSQSClient(sqsClientConfig, aws_sqs.New(sess), iam.New(sess), logger, context.Background())
+	// sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
+	sqsClient := sqs.SQSClient{}
 
 	sqsProvider := provider.NewSQSProvider(sqsClient)
 	if err != nil {
@@ -71,5 +66,7 @@ func main() {
 		log.Fatalf("Error listening to port %s: %s", config.API.Port, err)
 	}
 	fmt.Println("SQS Service Broker started on port " + config.API.Port + "...")
-	http.Serve(listener, brokerAPI)
+	if err := http.Serve(listener, brokerAPI); err != nil {
+		log.Fatalf("Error opening config file %s: %s\n", configFilePath, err)
+	}
 }

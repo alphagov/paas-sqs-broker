@@ -1,4 +1,4 @@
-module github.com/alphagov/paas-s3-broker
+module github.com/alphagov/paas-sqs-broker
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
@@ -9,7 +9,6 @@ require (
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/pivotal-cf/brokerapi v6.4.2+incompatible
-	github.com/satori/go.uuid v1.2.0
 )
 
 go 1.13
