@@ -4,7 +4,7 @@ unit:
 
 .PHONY: test
 test:
-	go test -mod=vendor ./...
+	go test ./...
 
 .PHONY: generate
 generate:
