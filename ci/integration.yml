@@ -7,6 +7,8 @@ image_resource:
     tag: 1.13-stretch
 inputs:
   - name: repo
+params:
+  ENABLE_INTEGRATION_TESTS: "true"
 run:
   path: sh
   args:
