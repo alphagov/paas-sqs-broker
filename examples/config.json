@@ -2,11 +2,10 @@
   "basic_auth_username": "username",
   "basic_auth_password": "password",
   "log_level": "info",
-  "aws_region": "us-east-1",
-  "resource_prefix": "paas-sqs-broker-",
-  "iam_user_path": "/paas-sqs-broker/",
+  "aws_region": "eu-west-2",
+  "resource_prefix": "paas-sqs-broker",
+  "permissions_boundary": "arn:fake:boundary",
   "deploy_env": "london",
-  "iam_ip_restriction_policy_arn": "something",
   "catalog": {
     "services": [
       {
