@@ -12,8 +12,10 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-service-broker-base/broker"
-	"github.com/alphagov/paas-sqs-broker/provider"
 	"github.com/alphagov/paas-sqs-broker/sqs"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 )
 
 var configFilePath string
@@ -38,7 +40,7 @@ func main() {
 		log.Fatalf("Error parsing configuration: %v\n", err)
 	}
 
-	_, err = sqs.NewSQSClientConfig(config.Provider)
+	sqsClientConfig, err := sqs.NewConfig(config.Provider)
 	if err != nil {
 		log.Fatalf("Error parsing configuration: %v\n", err)
 	}
@@ -46,12 +48,19 @@ func main() {
 	logger := lager.NewLogger("sqs-service-broker")
 	logger.RegisterSink(lager.NewWriterSink(os.Stdout, config.API.LagerLogLevel))
 
-	// sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
-	sqsClient := sqs.SQSClient{}
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String(sqsClientConfig.AWSRegion),
+	}))
+	cfg := aws.NewConfig()
+	cfg = cfg.WithRegion(sqsClientConfig.AWSRegion)
 
-	sqsProvider := provider.NewSQSProvider(sqsClient)
-	if err != nil {
-		log.Fatalf("Error creating SQS Provider: %v\n", err)
+	sqsProvider := &sqs.Provider{
+		Client:              cloudformation.New(sess, cfg),
+		Environment:         sqsClientConfig.DeployEnvironment,
+		ResourcePrefix:      sqsClientConfig.ResourcePrefix,
+		PermissionsBoundary: sqsClientConfig.PermissionsBoundary,
+		Timeout:             sqsClientConfig.Timeout,
+		Logger:              logger,
 	}
 
 	serviceBroker, err := broker.New(config, sqsProvider, logger)
