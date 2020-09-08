@@ -19,14 +19,14 @@ type Client interface {
 }
 
 type Config struct {
-	AWSRegion         string `json:"aws_region"`
-	ResourcePrefix    string `json:"resource_prefix"`
-	IAMUserPath       string `json:"iam_user_path"`
-	DeployEnvironment string `json:"deploy_env"`
-	Timeout           time.Duration
+	AWSRegion           string `json:"aws_region"`
+	ResourcePrefix      string `json:"resource_prefix"`
+	DeployEnvironment   string `json:"deploy_env"`
+	Timeout             time.Duration
+	PermissionsBoundary string `json:"permissions_boundary"`
 }
 
-func NewSQSClientConfig(configJSON []byte) (*Config, error) {
+func NewConfig(configJSON []byte) (*Config, error) {
 	config := &Config{}
 	err := json.Unmarshal(configJSON, &config)
 	if err != nil {
@@ -35,5 +35,3 @@ func NewSQSClientConfig(configJSON []byte) (*Config, error) {
 
 	return config, nil
 }
-
-type SQSClient struct{}
