@@ -1,21 +1,23 @@
 package broker_test
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/alphagov/paas-service-broker-base/broker"
-	"github.com/alphagov/paas-service-broker-base/testing/mock_locket_server"
 	"github.com/alphagov/paas-sqs-broker/sqs"
+	"github.com/pivotal-cf/brokerapi/domain"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 )
 
 var (
 	BrokerSuiteData SuiteData
-	mockLocket      *mock_locket_server.MockLocket
-	locketFixtures  mock_locket_server.LocketFixtures
 )
 
 type SuiteData struct {
@@ -34,26 +36,72 @@ var _ = BeforeSuite(func() {
 
 	config, err := broker.NewConfig(file)
 	Expect(err).ToNot(HaveOccurred())
-	sqsClientConfig, err := sqs.NewSQSClientConfig(config.Provider)
+	sqsClientConfig, err := sqs.NewConfig(config.Provider)
 	Expect(err).ToNot(HaveOccurred())
 
-	// sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
-
-	// Start test Locket server
-	locketFixtures, err = mock_locket_server.SetupLocketFixtures()
-	Expect(err).NotTo(HaveOccurred())
-	mockLocket, err = mock_locket_server.New("keyBasedLock", locketFixtures.Filepath)
-	Expect(err).NotTo(HaveOccurred())
-	mockLocket.Start(mockLocket.Logger, mockLocket.ListenAddress, mockLocket.Certificate, mockLocket.Handler)
+	// by default the integration tests run without a permission boundary so
+	// that there are no dependencies on setting up external IAM policies
+	// to run the test with a predefined permission boundary policy set the following environment variable:
+	//
+	// PERMISSIONS_BOUNDARY_ARN="arn:aws:iam::ACCOUNT-ID:policy/SQSBrokerUserPermissionsBoundary"
+	//
+	optionalPermissionsBoundary := os.Getenv("PERMISSIONS_BOUNDARY_ARN")
+	if optionalPermissionsBoundary != "" {
+		sqsClientConfig.PermissionsBoundary = optionalPermissionsBoundary
+	}
 
 	BrokerSuiteData = SuiteData{
 		AWSRegion: sqsClientConfig.AWSRegion,
 	}
 })
 
-var _ = AfterSuite(func() {
-	if mockLocket != nil {
-		mockLocket.Stop()
+func HaveLastOperationState(expectedState domain.LastOperationState) types.GomegaMatcher {
+	return &haveLastOperationStateMatcher{
+		expectedState: expectedState,
 	}
-	locketFixtures.Cleanup()
-})
+}
+
+type haveLastOperationStateMatcher struct {
+	expectedState domain.LastOperationState
+}
+
+func (matcher *haveLastOperationStateMatcher) state(actual interface{}) (domain.LastOperationState, error) {
+	res, ok := actual.(*httptest.ResponseRecorder)
+	if !ok {
+		return "", fmt.Errorf("HaveLastOperationState matcher expects an httptest.ResponseRecorder")
+	}
+	var ret struct {
+		State domain.LastOperationState `json:"state"`
+	}
+	_ = json.NewDecoder(res.Result().Body).Decode(&ret)
+	return ret.State, nil
+}
+
+func (matcher *haveLastOperationStateMatcher) Match(actual interface{}) (success bool, err error) {
+	actualState, err := matcher.state(actual)
+	if err != nil {
+		return false, err
+	}
+	return actualState == matcher.expectedState, nil
+}
+
+func (matcher *haveLastOperationStateMatcher) FailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected\n\t%#v\nto have last operation state of\n\t%#v", actual, matcher.expectedState)
+}
+
+func (matcher *haveLastOperationStateMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected\n\t%#v\nnot to have last operation state of\n\t%#v", actual, matcher.expectedState)
+}
+
+func (matcher *haveLastOperationStateMatcher) MatchMayChangeInTheFuture(actual interface{}) bool {
+	actualState, err := matcher.state(actual)
+	if err != nil {
+		return false
+	}
+	switch actualState {
+	case domain.InProgress:
+		return true
+	default:
+		return false
+	}
+}
