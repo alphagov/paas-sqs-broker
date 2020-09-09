@@ -1,10 +1,7 @@
-.PHONY: unit
-unit:
-	ginkgo $(COMMAND) -r --skipPackage=testing/integration $(PACKAGE)
 
 .PHONY: test
 test:
-	go test ./...
+	go run github.com/onsi/ginkgo/ginkgo -v ./...
 
 .PHONY: generate
 generate:
