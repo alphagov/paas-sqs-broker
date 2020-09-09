@@ -124,7 +124,7 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	}
 
 	template.Outputs[SQSQueueURLOutputName] = goformation.Output{
-		Description: "SQSQueue URL",
+		Description: "Main queue URL",
 		Value:       goformation.Ref(SQSResourceName),
 		Export: goformation.Export{
 			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSQueueURLOutputName),
@@ -132,7 +132,7 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	}
 
 	template.Outputs[SQSQueueARNOutputName] = goformation.Output{
-		Description: "SQSQueue ARN",
+		Description: "Main queue ARN",
 		Value:       goformation.GetAtt(SQSResourceName, "Arn"),
 		Export: goformation.Export{
 			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSQueueARNOutputName),
@@ -140,7 +140,7 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	}
 
 	template.Outputs[SQSDLQueueURLOutputName] = goformation.Output{
-		Description: "SQSQueue DLQ URL",
+		Description: "Deadletter queue URL",
 		Value:       goformation.Ref(SQSDLQResourceName),
 		Export: goformation.Export{
 			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSDLQueueURLOutputName),
@@ -148,7 +148,7 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	}
 
 	template.Outputs[SQSDLQueueARNOutputName] = goformation.Output{
-		Description: "SQSDLQueue ARN",
+		Description: "Deadletter queue ARN",
 		Value:       goformation.GetAtt(SQSDLQResourceName, "Arn"),
 		Export: goformation.Export{
 			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSDLQueueARNOutputName),
