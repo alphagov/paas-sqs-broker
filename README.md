@@ -19,7 +19,7 @@ credentials in your environment and you must set the ENABLE_INTEGRATION_TESTS
 environment variable to `true`.
 
 ```
-ENABLE_INTEGRATION_TESTS=true go test -v ./integration/...
+ENABLE_INTEGRATION_TESTS=true go test -v ./...
 ```
 
 If you have access to the GOV.UK PaaS build CI then you test with a permission boundary set using:
