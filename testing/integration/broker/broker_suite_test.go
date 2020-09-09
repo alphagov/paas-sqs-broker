@@ -4,11 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"github.com/alphagov/paas-service-broker-base/broker"
-	"github.com/alphagov/paas-sqs-broker/sqs"
 	"github.com/pivotal-cf/brokerapi/domain"
 
 	. "github.com/onsi/ginkgo"
@@ -16,44 +13,10 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
-var (
-	BrokerSuiteData SuiteData
-)
-
-type SuiteData struct {
-	AWSRegion string
-}
-
 func TestBroker(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Broker Suite")
 }
-
-var _ = BeforeSuite(func() {
-	file, err := os.Open("../../fixtures/config.json")
-	Expect(err).ToNot(HaveOccurred())
-	defer file.Close()
-
-	config, err := broker.NewConfig(file)
-	Expect(err).ToNot(HaveOccurred())
-	sqsClientConfig, err := sqs.NewConfig(config.Provider)
-	Expect(err).ToNot(HaveOccurred())
-
-	// by default the integration tests run without a permission boundary so
-	// that there are no dependencies on setting up external IAM policies
-	// to run the test with a predefined permission boundary policy set the following environment variable:
-	//
-	// PERMISSIONS_BOUNDARY_ARN="arn:aws:iam::ACCOUNT-ID:policy/SQSBrokerUserPermissionsBoundary"
-	//
-	optionalPermissionsBoundary := os.Getenv("PERMISSIONS_BOUNDARY_ARN")
-	if optionalPermissionsBoundary != "" {
-		sqsClientConfig.PermissionsBoundary = optionalPermissionsBoundary
-	}
-
-	BrokerSuiteData = SuiteData{
-		AWSRegion: sqsClientConfig.AWSRegion,
-	}
-})
 
 func HaveLastOperationState(expectedState domain.LastOperationState) types.GomegaMatcher {
 	return &haveLastOperationStateMatcher{

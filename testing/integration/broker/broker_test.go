@@ -37,6 +37,10 @@ var (
 
 var _ = Describe("Broker", func() {
 	var (
+		brokerTester brokertesting.BrokerTester
+	)
+
+	var (
 		instanceID string
 		binding1ID string
 		serviceID  = "uuid-1"
@@ -49,12 +53,10 @@ var _ = Describe("Broker", func() {
 		}
 		instanceID = uuid.NewV4().String()
 		binding1ID = uuid.NewV4().String()
+		_, brokerTester = initialise()
 	})
 
 	It("should manage the lifecycle of an SQS queue", func() {
-		By("initialising")
-		_, brokerTester := initialise()
-
 		By("Provisioning")
 		provisionValues := brokertesting.RequestBody{
 			ServiceID:        serviceID,
@@ -176,6 +178,17 @@ func initialise() (*sqs.Config, brokertesting.BrokerTester) {
 
 	sqsClientConfig, err := sqs.NewConfig(config.Provider)
 	Expect(err).ToNot(HaveOccurred())
+
+	// by default the integration tests run without a permission boundary so
+	// that there are no dependencies on setting up external IAM policies
+	// to run the test with a predefined permission boundary policy set the following environment variable:
+	//
+	// PERMISSIONS_BOUNDARY_ARN="arn:aws:iam::ACCOUNT-ID:policy/SQSBrokerUserPermissionsBoundary"
+	//
+	optionalPermissionsBoundary := os.Getenv("PERMISSIONS_BOUNDARY_ARN")
+	if optionalPermissionsBoundary != "" {
+		sqsClientConfig.PermissionsBoundary = optionalPermissionsBoundary
+	}
 
 	logger := lager.NewLogger("sqs-service-broker-test")
 	logger.RegisterSink(lager.NewWriterSink(GinkgoWriter, config.API.LagerLogLevel))
