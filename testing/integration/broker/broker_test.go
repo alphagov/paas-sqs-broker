@@ -63,7 +63,7 @@ var _ = Describe("Broker", func() {
 			PlanID:           planID,
 			OrganizationGUID: "some customer",
 			Parameters: &brokertesting.ConfigurationValues{
-				"messageRetentionPeriod": 60,
+				"message_retention_period": 60,
 			},
 		}
 		res := brokerTester.Provision(instanceID, provisionValues, ASYNC_ALLOWED)
@@ -131,7 +131,7 @@ var _ = Describe("Broker", func() {
 			ServiceID: serviceID,
 			PlanID:    planID,
 			Parameters: &brokertesting.ConfigurationValues{
-				"messageRetentionPeriod": 120,
+				"message_retention_period": 120,
 			},
 			PreviousValues: &provisionValues,
 		}, ASYNC_ALLOWED)

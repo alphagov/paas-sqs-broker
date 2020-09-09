@@ -130,12 +130,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when contentBasedDeduplication provision param set to false", func() {
+		Context("when content_based_deduplication provision param set to false", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"contentBasedDeduplication": false
+							"content_based_deduplication": false
 						}`),
 					},
 				}
@@ -145,12 +145,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when contentBasedDeduplication provision param set to true", func() {
+		Context("when content_based_deduplication provision param set to true", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"contentBasedDeduplication": true
+							"content_based_deduplication": true
 						}`),
 					},
 				}
@@ -161,12 +161,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when delaySeconds provision param set", func() {
+		Context("when delay_seconds provision param set", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"delaySeconds": 5
+							"delay_seconds": 5
 						}`),
 					},
 				}
@@ -177,12 +177,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when max message size provision param set", func() {
+		Context("when maximum_message_size provision param set", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"maximumMessageSize": 10
+							"maximum_message_size": 10
 						}`),
 					},
 				}
@@ -193,12 +193,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when retention period provision param set", func() {
+		Context("when message_retention_period param set", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"messageRetentionPeriod": 3
+							"message_retention_period": 3
 						}`),
 					},
 				}
@@ -209,12 +209,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when receive message wait time param set", func() {
+		Context("when receive_message_wait_time_seconds param set", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"receiveMessageWaitTimeSeconds": 20
+							"receive_message_wait_time_seconds": 20
 						}`),
 					},
 				}
@@ -225,12 +225,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when redrive max receive count param set", func() {
+		Context("when redrive_max_receive_count param set", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"redriveMaxReceiveCount": 30
+							"redrive_max_receive_count": 30
 						}`),
 					},
 				}
@@ -244,12 +244,12 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when visibility timeout param set", func() {
+		Context("when visibility_timeout param set", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
 						RawParameters: json.RawMessage(`{
-							"visibilityTimeout": 11
+							"visibility_timeout": 11
 						}`),
 					},
 				}
@@ -300,7 +300,7 @@ var _ = Describe("Provider", func() {
 				Details: domain.ProvisionDetails{
 					OrganizationGUID: "27b72d3f-9401-4b45-a7e7-40b17819954f",
 					RawParameters: json.RawMessage(`{
-						"contentBasedDeduplication": true
+						"content_based_deduplication": true
 					}`),
 				},
 			}
@@ -825,7 +825,7 @@ var _ = Describe("Provider", func() {
 				Details: domain.UpdateDetails{
 					ServiceID: "27b72d3f-9401-4b45-a7e7-40b17819954f",
 					RawParameters: json.RawMessage(`{
-						"contentBasedDeduplication": true
+						"content_based_deduplication": true
 					}`),
 				},
 			}
