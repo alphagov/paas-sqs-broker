@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 )
 
-//go:generate counterfeiter -o fakes/fake_sqs_client.go . Client
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_sqs_client.go . Client
 type Client interface {
 	DescribeStacksWithContext(aws.Context, *cloudformation.DescribeStacksInput, ...request.Option) (*cloudformation.DescribeStacksOutput, error)
 	// DescribeStackEventsWithContext(aws.Context, *cloudformation.DescribeStackEventsInput, ...request.Option) (*cloudformation.DescribeStackEventsOutput, error)
@@ -19,14 +19,14 @@ type Client interface {
 }
 
 type Config struct {
-	AWSRegion         string `json:"aws_region"`
-	ResourcePrefix    string `json:"resource_prefix"`
-	IAMUserPath       string `json:"iam_user_path"`
-	DeployEnvironment string `json:"deploy_env"`
-	Timeout           time.Duration
+	AWSRegion           string `json:"aws_region"`
+	ResourcePrefix      string `json:"resource_prefix"`
+	DeployEnvironment   string `json:"deploy_env"`
+	Timeout             time.Duration
+	PermissionsBoundary string `json:"permissions_boundary"`
 }
 
-func NewSQSClientConfig(configJSON []byte) (*Config, error) {
+func NewConfig(configJSON []byte) (*Config, error) {
 	config := &Config{}
 	err := json.Unmarshal(configJSON, &config)
 	if err != nil {
@@ -35,5 +35,3 @@ func NewSQSClientConfig(configJSON []byte) (*Config, error) {
 
 	return config, nil
 }
-
-type SQSClient struct{}

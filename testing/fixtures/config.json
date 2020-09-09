@@ -3,7 +3,7 @@
   "basic_auth_password": "password",
   "log_level": "debug",
   "aws_region": "eu-west-2",
-  "resource_prefix": "paas-sqs-broker",
+  "resource_prefix": "test-paas-sqs-broker",
   "iam_ip_restriction_policy_arn": "__SET_IN_TEST__",
   "deploy_env": "testdev",
   "catalog": {
