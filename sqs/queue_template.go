@@ -14,7 +14,6 @@ const (
 	SQSQueueURLOutputName   = "QueueURL"
 	SQSDLQueueURLOutputName = "DLQueueURL"
 	SQSResourceIAMPolicy    = "SQSSIAMPolicy"
-	IAMRoleParameterName    = "IAMRoleName"
 	SQSQueueARNOutputName   = "QueueARN"
 	SQSDLQueueARNOutputName = "DLQueueARN"
 	SQSRegionOutputName     = "Region"
