@@ -7,13 +7,21 @@ image_resource:
     tag: 1.13-stretch
 inputs:
   - name: repo
-params:
-  ENABLE_INTEGRATION_TESTS: "true"
 run:
   path: sh
   args:
     - -e
     - -c
     - |
+      echo "configuring integration tests..."
+      AWS_ACCOUNT_ID=$(curl http://169.254.169.254/latest/dynamic/instance-identity/document \
+        | grep accountId \
+        | awk '{print $3}' \
+        | sed 's/"//g'\
+        | sed 's/,//g' \
+      )
+      export PERMISSIONS_BOUNDARY_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/TestSQSBrokerUserPermissionsBoundary"
+      export ENABLE_INTEGRATION_TESTS="true"
+      echo "executing tests..."
       cd repo
       make test
