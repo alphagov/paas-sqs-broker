@@ -239,7 +239,7 @@ var _ = Describe("Provider", func() {
 			It("should set redrive policy", func() {
 				Expect(queue.RedrivePolicy).To(And(
 					HaveKeyWithValue("maxReceiveCount", float64(30)),
-					HaveKey("deadLetterTargetArn"), // Is that good enough?
+					HaveKey("deadLetterTargetArn"),
 				))
 			})
 		})
