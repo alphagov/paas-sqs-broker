@@ -9,14 +9,16 @@ import (
 )
 
 const (
-	SQSResourceName         = "SQSQueue"
-	SQSDLQResourceName      = "SQSDLQueue"
-	SQSQueueURLOutputName   = "QueueURL"
-	SQSDLQueueURLOutputName = "DLQueueURL"
-	SQSResourceIAMPolicy    = "SQSSIAMPolicy"
-	SQSQueueARNOutputName   = "QueueARN"
-	SQSDLQueueARNOutputName = "DLQueueARN"
-	SQSRegionOutputName     = "Region"
+	ResourceMainQueue       = "MainQueue"
+	ResourceDeadletterQueue = "DeadletterQueue"
+)
+
+const (
+	OutputMainQueueURL       = "MainQueueURL"
+	OutputMainQueueARN       = "MainQueueARN"
+	OutputDeadletterQueueURL = "DeadletterQueueURL"
+	OutputDeadletterQueueARN = "DeadletterQueueARN"
+	OutputRegion             = "Region"
 )
 
 type QueueParams struct {
@@ -87,14 +89,14 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	var redrivePolicy interface{}
 	if params.RedriveMaxReceiveCount > 0 {
 		redrivePolicy = map[string]interface{}{
-			"deadLetterTargetArn": goformation.GetAtt(SQSDLQResourceName, "Arn"),
+			"deadLetterTargetArn": goformation.GetAtt(ResourceDeadletterQueue, "Arn"),
 			"maxReceiveCount":     params.RedriveMaxReceiveCount,
 		}
 	} else {
 		redrivePolicy = ""
 	}
 
-	template.Resources[SQSResourceName] = &goformationsqs.Queue{
+	template.Resources[ResourceMainQueue] = &goformationsqs.Queue{
 		QueueName: params.QueueName,
 		Tags: append(tags, goformationtags.Tag{
 			Key:   "QueueType",
@@ -111,7 +113,7 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	}
 
 	dlQueueName := fmt.Sprintf("%s-dl", params.QueueName)
-	template.Resources[SQSDLQResourceName] = &goformationsqs.Queue{
+	template.Resources[ResourceDeadletterQueue] = &goformationsqs.Queue{
 		QueueName: dlQueueName,
 		Tags: append(tags, goformationtags.Tag{
 			Key:   "QueueType",
@@ -123,43 +125,43 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 		VisibilityTimeout:         params.VisibilityTimeout,
 	}
 
-	template.Outputs[SQSQueueURLOutputName] = goformation.Output{
+	template.Outputs[OutputMainQueueURL] = goformation.Output{
 		Description: "Main queue URL",
-		Value:       goformation.Ref(SQSResourceName),
+		Value:       goformation.Ref(ResourceMainQueue),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSQueueURLOutputName),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputMainQueueURL),
 		},
 	}
 
-	template.Outputs[SQSQueueARNOutputName] = goformation.Output{
+	template.Outputs[OutputMainQueueARN] = goformation.Output{
 		Description: "Main queue ARN",
-		Value:       goformation.GetAtt(SQSResourceName, "Arn"),
+		Value:       goformation.GetAtt(ResourceMainQueue, "Arn"),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSQueueARNOutputName),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputMainQueueARN),
 		},
 	}
 
-	template.Outputs[SQSDLQueueURLOutputName] = goformation.Output{
+	template.Outputs[OutputDeadletterQueueURL] = goformation.Output{
 		Description: "Deadletter queue URL",
-		Value:       goformation.Ref(SQSDLQResourceName),
+		Value:       goformation.Ref(ResourceDeadletterQueue),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSDLQueueURLOutputName),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputDeadletterQueueURL),
 		},
 	}
 
-	template.Outputs[SQSDLQueueARNOutputName] = goformation.Output{
+	template.Outputs[OutputDeadletterQueueARN] = goformation.Output{
 		Description: "Deadletter queue ARN",
-		Value:       goformation.GetAtt(SQSDLQResourceName, "Arn"),
+		Value:       goformation.GetAtt(ResourceDeadletterQueue, "Arn"),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSDLQueueARNOutputName),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputDeadletterQueueARN),
 		},
 	}
 
-	template.Outputs[SQSRegionOutputName] = goformation.Output{
+	template.Outputs[OutputRegion] = goformation.Output{
 		Description: "Region",
 		Value:       goformation.Ref("AWS::Region"),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, SQSRegionOutputName),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputRegion),
 		},
 	}
 

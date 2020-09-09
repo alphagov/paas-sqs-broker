@@ -25,11 +25,11 @@ var _ = Describe("UserTemplate", func() {
 		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
 		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
 		var ok bool
-		user, ok = t.Resources[sqs.SQSResourceIAMUserResourceName].(*goformationiam.User)
+		user, ok = t.Resources[sqs.ResourceUser].(*goformationiam.User)
 		Expect(ok).To(BeTrue())
-		accessKey, ok = t.Resources[sqs.SQSResourceIAMAccessKeyResourceName].(*goformationiam.AccessKey)
+		accessKey, ok = t.Resources[sqs.ResourceAccessKey].(*goformationiam.AccessKey)
 		Expect(ok).To(BeTrue())
-		policy, ok = t.Resources[sqs.SQSResourceIAMPolicyResourceName].(*goformationiam.Policy)
+		policy, ok = t.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
 		Expect(ok).To(BeTrue())
 	})
 
@@ -95,7 +95,7 @@ var _ = Describe("UserTemplate", func() {
 		})
 	})
 
-	It("should create an active access key", func () {
+	It("should create an active access key", func() {
 		Expect(accessKey.Status).To(Equal("Active"))
 		Expect(accessKey.UserName).ToNot(BeEmpty())
 	})
@@ -104,8 +104,8 @@ var _ = Describe("UserTemplate", func() {
 		t, err := sqs.UserTemplate(sqs.UserParams{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
-			HaveKey("IAMAccessKeyID"),
-			HaveKey("IAMSecretsAccessKey"),
+			HaveKey(sqs.OutputAccessKeyID),
+			HaveKey(sqs.OutputSecretAccessKey),
 		))
 	})
 })

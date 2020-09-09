@@ -156,9 +156,9 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		if item.OutputKey == nil || item.OutputValue == nil {
 			continue
 		}
-		if *item.OutputKey == SQSQueueARNOutputName {
+		if *item.OutputKey == OutputMainQueueARN {
 			params.QueueARN = *item.OutputValue
-		} else if *item.OutputKey == SQSDLQueueARNOutputName {
+		} else if *item.OutputKey == OutputDeadletterQueueARN {
 			params.DLQueueARN = *item.OutputValue
 		}
 	}
@@ -368,9 +368,9 @@ func (s *Provider) GetBinding(ctx context.Context, getBindingData provideriface.
 		if item.OutputKey == nil || item.OutputValue == nil {
 			continue
 		}
-		if *item.OutputKey == SQSOutputIAMAccessKeyID {
+		if *item.OutputKey == OutputAccessKeyID {
 			creds.AccessKeyID = *item.OutputValue
-		} else if *item.OutputKey == SQSOutputIAMSecretAccessKey {
+		} else if *item.OutputKey == OutputSecretAccessKey {
 			creds.SecretAccessKey = *item.OutputValue
 		}
 	}
@@ -388,11 +388,11 @@ func (s *Provider) GetBinding(ctx context.Context, getBindingData provideriface.
 		if item.OutputKey == nil || item.OutputValue == nil {
 			continue
 		}
-		if *item.OutputKey == SQSQueueURLOutputName {
+		if *item.OutputKey == OutputMainQueueURL {
 			creds.QueueURL = *item.OutputValue
-		} else if *item.OutputKey == SQSDLQueueURLOutputName {
+		} else if *item.OutputKey == OutputDeadletterQueueURL {
 			creds.DLQueueURL = *item.OutputValue
-		} else if *item.OutputKey == SQSRegionOutputName {
+		} else if *item.OutputKey == OutputRegion {
 			creds.Region = *item.OutputValue
 		}
 	}

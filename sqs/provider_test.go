@@ -80,7 +80,7 @@ var _ = Describe("Provider", func() {
 			var ok bool
 
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok = t.Resources[sqs.SQSResourceName].(*goformationsqs.Queue)
+			queue, ok = t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
 			Expect(ok).To(BeTrue())
 
 		})
@@ -325,7 +325,7 @@ var _ = Describe("Provider", func() {
 
 			// we should see a queue resource
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok := t.Resources[sqs.SQSResourceName].(*goformationsqs.Queue)
+			queue, ok := t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
 			Expect(ok).To(BeTrue())
 
 			// fifo should be set to false because we asked for a standard queue
@@ -535,11 +535,11 @@ var _ = Describe("Provider", func() {
 						StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 						Outputs: []*cloudformation.Output{
 							{
-								OutputKey:   aws.String(sqs.SQSOutputIAMAccessKeyID),
+								OutputKey:   aws.String(sqs.OutputAccessKeyID),
 								OutputValue: aws.String("michael"),
 							},
 							{
-								OutputKey:   aws.String(sqs.SQSOutputIAMSecretAccessKey),
+								OutputKey:   aws.String(sqs.OutputSecretAccessKey),
 								OutputValue: aws.String("phyllis"),
 							},
 						},
@@ -552,23 +552,23 @@ var _ = Describe("Provider", func() {
 						StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 						Outputs: []*cloudformation.Output{
 							{
-								OutputKey:   aws.String(sqs.SQSQueueARNOutputName),
+								OutputKey:   aws.String(sqs.OutputMainQueueARN),
 								OutputValue: aws.String("orange"),
 							},
 							{
-								OutputKey:   aws.String(sqs.SQSDLQueueARNOutputName),
+								OutputKey:   aws.String(sqs.OutputDeadletterQueueARN),
 								OutputValue: aws.String("apple"),
 							},
 							{
-								OutputKey:   aws.String(sqs.SQSQueueURLOutputName),
+								OutputKey:   aws.String(sqs.OutputMainQueueURL),
 								OutputValue: aws.String("https://flambouyant/"),
 							},
 							{
-								OutputKey:   aws.String(sqs.SQSDLQueueURLOutputName),
+								OutputKey:   aws.String(sqs.OutputDeadletterQueueURL),
 								OutputValue: aws.String("https://pilchard/"),
 							},
 							{
-								OutputKey:   aws.String(sqs.SQSRegionOutputName),
+								OutputKey:   aws.String(sqs.OutputRegion),
 								OutputValue: aws.String("antartica"),
 							},
 						},
@@ -716,11 +716,11 @@ var _ = Describe("Provider", func() {
 						StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 						Outputs: []*cloudformation.Output{
 							{
-								OutputKey:   aws.String(sqs.SQSQueueARNOutputName),
+								OutputKey:   aws.String(sqs.OutputMainQueueARN),
 								OutputValue: aws.String(arn1),
 							},
 							{
-								OutputKey:   aws.String(sqs.SQSDLQueueARNOutputName),
+								OutputKey:   aws.String(sqs.OutputDeadletterQueueARN),
 								OutputValue: aws.String(arn2),
 							},
 						},
@@ -749,10 +749,10 @@ var _ = Describe("Provider", func() {
 
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
 			var ok bool
-			user, ok = t.Resources[sqs.SQSResourceIAMUserResourceName].(*goformationiam.User)
+			user, ok = t.Resources[sqs.ResourceUser].(*goformationiam.User)
 			Expect(ok).To(BeTrue())
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
-			policy, ok = t.Resources[sqs.SQSResourceIAMPolicyResourceName].(*goformationiam.Policy)
+			policy, ok = t.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
 			Expect(ok).To(BeTrue())
 		})
 
@@ -850,7 +850,7 @@ var _ = Describe("Provider", func() {
 
 			// we should see a queue resource
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok := t.Resources[sqs.SQSResourceName].(*goformationsqs.Queue)
+			queue, ok := t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
 			Expect(ok).To(BeTrue())
 
 			// fifo should be set to true because we asked for a fifo queue

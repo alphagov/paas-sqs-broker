@@ -9,11 +9,14 @@ import (
 )
 
 const (
-	SQSResourceIAMUserResourceName      = "IAMUser"
-	SQSResourceIAMAccessKeyResourceName = "IAMAccessKey"
-	SQSResourceIAMPolicyResourceName    = "IAMPolicy"
-	SQSOutputIAMAccessKeyID             = "IAMAccessKeyID"
-	SQSOutputIAMSecretAccessKey         = "IAMSecretsAccessKey"
+	ResourceUser      = "IAMUser"
+	ResourceAccessKey = "IAMAccessKey"
+	ResourcePolicy    = "IAMPolicy"
+)
+
+const (
+	OutputAccessKeyID     = "IAMAccessKeyID"
+	OutputSecretAccessKey = "IAMSecretAccessKey"
 )
 
 type UserParams struct {
@@ -60,40 +63,40 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 		},
 	}
 
-	template.Resources[SQSResourceIAMUserResourceName] = &goformationiam.User{
+	template.Resources[ResourceUser] = &goformationiam.User{
 		UserName:            params.UserName,
 		Path:                params.UserPath,
 		Tags:                tags,
 		PermissionsBoundary: params.PermissionsBoundary,
 	}
 
-	template.Resources[SQSResourceIAMAccessKeyResourceName] = &goformationiam.AccessKey{
+	template.Resources[ResourceAccessKey] = &goformationiam.AccessKey{
 		Serial:   1,
 		Status:   "Active",
-		UserName: goformation.Ref(SQSResourceIAMUserResourceName),
+		UserName: goformation.Ref(ResourceUser),
 	}
 
-	template.Resources[SQSResourceIAMPolicyResourceName] = &goformationiam.Policy{
+	template.Resources[ResourcePolicy] = &goformationiam.Policy{
 		PolicyName:     params.UserName,
 		PolicyDocument: policy,
 		Users: []string{
-			goformation.Ref(SQSResourceIAMUserResourceName),
+			goformation.Ref(ResourceUser),
 		},
 	}
 
-	template.Outputs[SQSOutputIAMAccessKeyID] = goformation.Output{
+	template.Outputs[OutputAccessKeyID] = goformation.Output{
 		Description: "Access Key ID",
-		Value:       goformation.Ref(SQSResourceIAMAccessKeyResourceName),
+		Value:       goformation.Ref(ResourceAccessKey),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.UserName, SQSOutputIAMAccessKeyID),
+			Name: fmt.Sprintf("%s-%s", params.UserName, OutputAccessKeyID),
 		},
 	}
 
-	template.Outputs[SQSOutputIAMSecretAccessKey] = goformation.Output{ // TODO: do we need to do the whole secrets manager thing here?
+	template.Outputs[OutputSecretAccessKey] = goformation.Output{ // TODO: do we need to do the whole secrets manager thing here?
 		Description: "Secret Access Key",
-		Value:       goformation.GetAtt(SQSResourceIAMAccessKeyResourceName, "SecretAccessKey"),
+		Value:       goformation.GetAtt(ResourceAccessKey, "SecretAccessKey"),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.UserName, SQSOutputIAMSecretAccessKey),
+			Name: fmt.Sprintf("%s-%s", params.UserName, OutputSecretAccessKey),
 		},
 	}
 	return template, nil

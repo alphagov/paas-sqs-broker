@@ -22,9 +22,9 @@ var _ = Describe("QueueTemplate", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
 		var ok bool
-		queue, ok = t.Resources[sqs.SQSResourceName].(*goformationsqs.Queue)
+		queue, ok = t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
 		Expect(ok).To(BeTrue())
-		dlqueue, ok = t.Resources[sqs.SQSDLQResourceName].(*goformationsqs.Queue)
+		dlqueue, ok = t.Resources[sqs.ResourceDeadletterQueue].(*goformationsqs.Queue)
 		Expect(ok).To(BeTrue())
 	})
 
@@ -182,10 +182,10 @@ var _ = Describe("QueueTemplate", func() {
 		t, err := sqs.QueueTemplate(sqs.QueueParams{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
-			HaveKey("QueueURL"),
-			HaveKey("DLQueueURL"),
-			HaveKey("QueueARN"),
-			HaveKey("DLQueueARN"),
+			HaveKey(sqs.OutputMainQueueARN),
+			HaveKey(sqs.OutputMainQueueURL),
+			HaveKey(sqs.OutputDeadletterQueueARN),
+			HaveKey(sqs.OutputDeadletterQueueURL),
 		))
 	})
 })
