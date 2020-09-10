@@ -14,8 +14,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 	awssqs "github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/ssm"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-service-broker-base/broker"
@@ -196,7 +197,13 @@ func initialise() (*sqs.Config, brokertesting.BrokerTester) {
 	sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
 
 	sqsProvider := &sqs.Provider{
-		Client:              cfn.New(sess),
+		Client: struct {
+			*ssm.SSM
+			*cloudformation.CloudFormation
+		}{
+			SSM:            ssm.New(sess),
+			CloudFormation: cloudformation.New(sess),
+		},
 		Environment:         sqsClientConfig.DeployEnvironment,
 		ResourcePrefix:      sqsClientConfig.ResourcePrefix,
 		PermissionsBoundary: sqsClientConfig.PermissionsBoundary,

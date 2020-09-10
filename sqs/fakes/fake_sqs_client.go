@@ -8,6 +8,7 @@ import (
 	"github.com/alphagov/paas-sqs-broker/sqs"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/ssm"
 )
 
 type FakeClient struct {
@@ -54,6 +55,21 @@ type FakeClient struct {
 	}
 	describeStacksWithContextReturnsOnCall map[int]struct {
 		result1 *cloudformation.DescribeStacksOutput
+		result2 error
+	}
+	GetParameterWithContextStub        func(context.Context, *ssm.GetParameterInput, ...request.Option) (*ssm.GetParameterOutput, error)
+	getParameterWithContextMutex       sync.RWMutex
+	getParameterWithContextArgsForCall []struct {
+		arg1 context.Context
+		arg2 *ssm.GetParameterInput
+		arg3 []request.Option
+	}
+	getParameterWithContextReturns struct {
+		result1 *ssm.GetParameterOutput
+		result2 error
+	}
+	getParameterWithContextReturnsOnCall map[int]struct {
+		result1 *ssm.GetParameterOutput
 		result2 error
 	}
 	UpdateStackWithContextStub        func(context.Context, *cloudformation.UpdateStackInput, ...request.Option) (*cloudformation.UpdateStackOutput, error)
@@ -270,6 +286,71 @@ func (fake *FakeClient) DescribeStacksWithContextReturnsOnCall(i int, result1 *c
 	}{result1, result2}
 }
 
+func (fake *FakeClient) GetParameterWithContext(arg1 context.Context, arg2 *ssm.GetParameterInput, arg3 ...request.Option) (*ssm.GetParameterOutput, error) {
+	fake.getParameterWithContextMutex.Lock()
+	ret, specificReturn := fake.getParameterWithContextReturnsOnCall[len(fake.getParameterWithContextArgsForCall)]
+	fake.getParameterWithContextArgsForCall = append(fake.getParameterWithContextArgsForCall, struct {
+		arg1 context.Context
+		arg2 *ssm.GetParameterInput
+		arg3 []request.Option
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetParameterWithContext", []interface{}{arg1, arg2, arg3})
+	fake.getParameterWithContextMutex.Unlock()
+	if fake.GetParameterWithContextStub != nil {
+		return fake.GetParameterWithContextStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getParameterWithContextReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) GetParameterWithContextCallCount() int {
+	fake.getParameterWithContextMutex.RLock()
+	defer fake.getParameterWithContextMutex.RUnlock()
+	return len(fake.getParameterWithContextArgsForCall)
+}
+
+func (fake *FakeClient) GetParameterWithContextCalls(stub func(context.Context, *ssm.GetParameterInput, ...request.Option) (*ssm.GetParameterOutput, error)) {
+	fake.getParameterWithContextMutex.Lock()
+	defer fake.getParameterWithContextMutex.Unlock()
+	fake.GetParameterWithContextStub = stub
+}
+
+func (fake *FakeClient) GetParameterWithContextArgsForCall(i int) (context.Context, *ssm.GetParameterInput, []request.Option) {
+	fake.getParameterWithContextMutex.RLock()
+	defer fake.getParameterWithContextMutex.RUnlock()
+	argsForCall := fake.getParameterWithContextArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) GetParameterWithContextReturns(result1 *ssm.GetParameterOutput, result2 error) {
+	fake.getParameterWithContextMutex.Lock()
+	defer fake.getParameterWithContextMutex.Unlock()
+	fake.GetParameterWithContextStub = nil
+	fake.getParameterWithContextReturns = struct {
+		result1 *ssm.GetParameterOutput
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) GetParameterWithContextReturnsOnCall(i int, result1 *ssm.GetParameterOutput, result2 error) {
+	fake.getParameterWithContextMutex.Lock()
+	defer fake.getParameterWithContextMutex.Unlock()
+	fake.GetParameterWithContextStub = nil
+	if fake.getParameterWithContextReturnsOnCall == nil {
+		fake.getParameterWithContextReturnsOnCall = make(map[int]struct {
+			result1 *ssm.GetParameterOutput
+			result2 error
+		})
+	}
+	fake.getParameterWithContextReturnsOnCall[i] = struct {
+		result1 *ssm.GetParameterOutput
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeClient) UpdateStackWithContext(arg1 context.Context, arg2 *cloudformation.UpdateStackInput, arg3 ...request.Option) (*cloudformation.UpdateStackOutput, error) {
 	fake.updateStackWithContextMutex.Lock()
 	ret, specificReturn := fake.updateStackWithContextReturnsOnCall[len(fake.updateStackWithContextArgsForCall)]
@@ -344,6 +425,8 @@ func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	defer fake.deleteStackWithContextMutex.RUnlock()
 	fake.describeStacksWithContextMutex.RLock()
 	defer fake.describeStacksWithContextMutex.RUnlock()
+	fake.getParameterWithContextMutex.RLock()
+	defer fake.getParameterWithContextMutex.RUnlock()
 	fake.updateStackWithContextMutex.RLock()
 	defer fake.updateStackWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

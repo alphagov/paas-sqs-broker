@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/ssm"
 )
 
 var configFilePath string
@@ -55,7 +56,13 @@ func main() {
 	cfg = cfg.WithRegion(sqsClientConfig.AWSRegion)
 
 	sqsProvider := &sqs.Provider{
-		Client:              cloudformation.New(sess, cfg),
+		Client: struct {
+			*ssm.SSM
+			*cloudformation.CloudFormation
+		}{
+			SSM:            ssm.New(sess, cfg),
+			CloudFormation: cloudformation.New(sess, cfg),
+		},
 		Environment:         sqsClientConfig.DeployEnvironment,
 		ResourcePrefix:      sqsClientConfig.ResourcePrefix,
 		PermissionsBoundary: sqsClientConfig.PermissionsBoundary,
