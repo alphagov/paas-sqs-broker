@@ -1,31 +1,44 @@
 package sqs
 
 import (
+	"encoding/json"
 	"fmt"
 
 	goformation "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
+	goformationssm "github.com/awslabs/goformation/v4/cloudformation/ssm"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 )
 
 const (
-	ResourceUser      = "IAMUser"
-	ResourceAccessKey = "IAMAccessKey"
-	ResourcePolicy    = "IAMPolicy"
+	ResourceUser        = "IAMUser"
+	ResourceAccessKey   = "IAMAccessKey"
+	ResourcePolicy      = "IAMPolicy"
+	ResourceCredentials = "BindingCredentials"
 )
 
 const (
-	OutputAccessKeyID     = "IAMAccessKeyID"
-	OutputSecretAccessKey = "IAMSecretAccessKey"
+	OutputCredentialsPath = "CredentialsPath"
 )
 
 type UserParams struct {
-	UserName            string            `json:"-"`
+	BindingID           string            `json:"-"`
+	ResourcePrefix      string            `json:"-"`
 	UserPath            string            `json:"-"`
-	QueueARN            string            `json:"queueARN,omitempty"`
-	DLQueueARN          string            `json:"dlqueueARN,omitempty"`
-	Tags                map[string]string `json:"tags,omitempty"`
+	PrimaryQueueURL     string            `json:"-"`
+	PrimaryQueueARN     string            `json:"-"`
+	SecondaryQueueURL   string            `json:"-"`
+	SecondaryQueueARN   string            `json:"-"`
+	Tags                map[string]string `json:"-"`
 	PermissionsBoundary string            `json:"-"`
+}
+
+type Credentials struct {
+	AWSAccessKeyID     string `json:"aws_access_key_id"`
+	AWSSecretAccessKey string `json:"aws_secret_access_key"`
+	AWSRegion          string `json:"aws_region"`
+	PrimaryQueueURL    string `json:"primary_queue_url"`
+	SecondaryQueueURL  string `json:"secondary_queue_url"`
 }
 
 func UserTemplate(params UserParams) (*goformation.Template, error) {
@@ -56,16 +69,35 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 					"sqs:SendMessage",
 				},
 				Resource: []string{
-					params.QueueARN,
-					params.DLQueueARN,
+					params.PrimaryQueueARN,
+					params.SecondaryQueueARN,
 				},
 			},
 		},
 	}
 
+	// this is a template representing the json credential for the binding.
+	// the values get interpolated with values from cloudformation
+	// once they are available.
+	//
+	// ${res} is equivilent to cloudformation.Ref("res")
+	// ${res.arn} is equivilent to cloudformation.GetAtt("res", "arn")
+	//
+	credentialsPlaceholders := Credentials{
+		AWSAccessKeyID:     fmt.Sprintf("${%s}", ResourceAccessKey),
+		AWSSecretAccessKey: fmt.Sprintf("${%s.SecretAccessKey}", ResourceAccessKey),
+		AWSRegion:          "${AWS::Region}",
+		PrimaryQueueURL:    params.PrimaryQueueURL,
+		SecondaryQueueURL:  params.SecondaryQueueURL,
+	}
+	credentialsTemplate, err := json.Marshal(credentialsPlaceholders)
+	if err != nil {
+		return nil, err
+	}
+
 	template.Resources[ResourceUser] = &goformationiam.User{
-		UserName:            params.UserName,
-		Path:                params.UserPath,
+		UserName:            fmt.Sprintf("binding-%s", params.BindingID),
+		Path:                fmt.Sprintf("/%s/", params.ResourcePrefix),
 		Tags:                tags,
 		PermissionsBoundary: params.PermissionsBoundary,
 	}
@@ -77,28 +109,28 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 	}
 
 	template.Resources[ResourcePolicy] = &goformationiam.Policy{
-		PolicyName:     params.UserName,
+		PolicyName:     fmt.Sprintf("%s-%s", params.ResourcePrefix, params.BindingID),
 		PolicyDocument: policy,
 		Users: []string{
 			goformation.Ref(ResourceUser),
 		},
 	}
 
-	template.Outputs[OutputAccessKeyID] = goformation.Output{
-		Description: "Access Key ID",
-		Value:       goformation.Ref(ResourceAccessKey),
+	template.Resources[ResourceCredentials] = &goformationssm.Parameter{
+		Type:        "String",
+		Description: "Binding credentials",
+		Name:        fmt.Sprintf("/%s/binding/%s/credentials", params.ResourcePrefix, params.BindingID),
+		Value:       goformation.Sub(credentialsTemplate),
+	}
+
+	template.Outputs[OutputCredentialsPath] = goformation.Output{
+		Description: "Path to the binding credentials",
+		Value:       goformation.Ref(ResourceCredentials),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.UserName, OutputAccessKeyID),
+			Name: fmt.Sprintf("%s-%s", params.BindingID, OutputCredentialsPath), // export should not be required, this is a goformation bug
 		},
 	}
 
-	template.Outputs[OutputSecretAccessKey] = goformation.Output{ // TODO: do we need to do the whole secrets manager thing here?
-		Description: "Secret Access Key",
-		Value:       goformation.GetAtt(ResourceAccessKey, "SecretAccessKey"),
-		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.UserName, OutputSecretAccessKey),
-		},
-	}
 	return template, nil
 }
 

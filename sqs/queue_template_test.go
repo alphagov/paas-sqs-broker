@@ -9,8 +9,8 @@ import (
 )
 
 var _ = Describe("QueueTemplate", func() {
-	var queue *goformationsqs.Queue
-	var dlqueue *goformationsqs.Queue
+	var primaryQueue *goformationsqs.Queue
+	var secondaryQueue *goformationsqs.Queue
 	var params sqs.QueueParams
 
 	BeforeEach(func() {
@@ -22,9 +22,9 @@ var _ = Describe("QueueTemplate", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
 		var ok bool
-		queue, ok = t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
+		primaryQueue, ok = t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
 		Expect(ok).To(BeTrue())
-		dlqueue, ok = t.Resources[sqs.ResourceDeadletterQueue].(*goformationsqs.Queue)
+		secondaryQueue, ok = t.Resources[sqs.ResourceSecondaryQueue].(*goformationsqs.Queue)
 		Expect(ok).To(BeTrue())
 	})
 
@@ -38,11 +38,14 @@ var _ = Describe("QueueTemplate", func() {
 		BeforeEach(func() {
 			params.QueueName = "q-name-a"
 		})
-		It("should set queue names", func() {
-			Expect(queue.QueueName).To(Equal("q-name-a"))
-			Expect(dlqueue.QueueName).To(Equal("q-name-a-dl"))
+		It("should set primary queue name", func() {
+			Expect(primaryQueue.QueueName).To(HavePrefix("q-name-a"))
+			Expect(primaryQueue.QueueName).To(HaveSuffix("-pri"))
 		})
-
+		It("should set secondary queue name", func() {
+			Expect(secondaryQueue.QueueName).To(HavePrefix("q-name-a"))
+			Expect(secondaryQueue.QueueName).To(HaveSuffix("-sec"))
+		})
 	})
 
 	Context("when tags are set", func() {
@@ -53,10 +56,10 @@ var _ = Describe("QueueTemplate", func() {
 			}
 		})
 		It("should have suitable tags", func() {
-			Expect(queue.Tags).To(ConsistOf(
+			Expect(primaryQueue.Tags).To(ConsistOf(
 				goformationtags.Tag{ // auto-injected
 					Key:   "QueueType",
-					Value: "Main",
+					Value: "Primary",
 				},
 				goformationtags.Tag{
 					Key:   "Service",
@@ -67,10 +70,10 @@ var _ = Describe("QueueTemplate", func() {
 					Value: "autom8",
 				},
 			))
-			Expect(dlqueue.Tags).To(ConsistOf(
+			Expect(secondaryQueue.Tags).To(ConsistOf(
 				goformationtags.Tag{ // auto-injected
 					Key:   "QueueType",
-					Value: "Dead-Letter",
+					Value: "Secondary",
 				},
 				goformationtags.Tag{
 					Key:   "Service",
@@ -85,19 +88,19 @@ var _ = Describe("QueueTemplate", func() {
 	})
 
 	It("should have sensible default values", func() {
-		Expect(queue.ContentBasedDeduplication).To(BeFalse())
-		Expect(queue.DelaySeconds).To(BeZero())
-		Expect(queue.FifoQueue).To(BeFalse())
-		Expect(queue.MaximumMessageSize).To(BeZero())
-		Expect(queue.MessageRetentionPeriod).To(BeZero())
-		Expect(queue.ReceiveMessageWaitTimeSeconds).To(BeZero())
-		Expect(queue.RedrivePolicy).To(BeEmpty())
-		Expect(queue.VisibilityTimeout).To(BeZero())
+		Expect(primaryQueue.ContentBasedDeduplication).To(BeFalse())
+		Expect(primaryQueue.DelaySeconds).To(BeZero())
+		Expect(primaryQueue.FifoQueue).To(BeFalse())
+		Expect(primaryQueue.MaximumMessageSize).To(BeZero())
+		Expect(primaryQueue.MessageRetentionPeriod).To(BeZero())
+		Expect(primaryQueue.ReceiveMessageWaitTimeSeconds).To(BeZero())
+		Expect(primaryQueue.RedrivePolicy).To(BeEmpty())
+		Expect(primaryQueue.VisibilityTimeout).To(BeZero())
 
-		Expect(dlqueue.ContentBasedDeduplication).To(BeFalse())
-		Expect(dlqueue.FifoQueue).To(BeFalse())
-		Expect(dlqueue.MessageRetentionPeriod).To(BeZero())
-		Expect(dlqueue.VisibilityTimeout).To(BeZero())
+		Expect(secondaryQueue.ContentBasedDeduplication).To(BeFalse())
+		Expect(secondaryQueue.FifoQueue).To(BeFalse())
+		Expect(secondaryQueue.MessageRetentionPeriod).To(BeZero())
+		Expect(secondaryQueue.VisibilityTimeout).To(BeZero())
 	})
 
 	Context("when contentBasedDeduplication is set", func() {
@@ -105,8 +108,8 @@ var _ = Describe("QueueTemplate", func() {
 			params.ContentBasedDeduplication = true
 		})
 		It("should set queue ContentBasedDeduplication from spec", func() {
-			Expect(queue.ContentBasedDeduplication).To(BeTrue())
-			Expect(dlqueue.ContentBasedDeduplication).To(BeTrue())
+			Expect(primaryQueue.ContentBasedDeduplication).To(BeTrue())
+			Expect(secondaryQueue.ContentBasedDeduplication).To(BeTrue())
 		})
 	})
 
@@ -115,7 +118,7 @@ var _ = Describe("QueueTemplate", func() {
 			params.DelaySeconds = 600
 		})
 		It("should set queue DelaySeconds from spec", func() {
-			Expect(queue.DelaySeconds).To(Equal(600))
+			Expect(primaryQueue.DelaySeconds).To(Equal(600))
 		})
 	})
 
@@ -124,8 +127,8 @@ var _ = Describe("QueueTemplate", func() {
 			params.FifoQueue = true
 		})
 		It("should set queue FifoQueue from spec", func() {
-			Expect(queue.FifoQueue).To(BeTrue())
-			Expect(dlqueue.FifoQueue).To(BeTrue())
+			Expect(primaryQueue.FifoQueue).To(BeTrue())
+			Expect(secondaryQueue.FifoQueue).To(BeTrue())
 		})
 	})
 
@@ -134,7 +137,7 @@ var _ = Describe("QueueTemplate", func() {
 			params.MaximumMessageSize = 300
 		})
 		It("should set queue MaximumMessageSize from spec", func() {
-			Expect(queue.MaximumMessageSize).To(Equal(300))
+			Expect(primaryQueue.MaximumMessageSize).To(Equal(300))
 		})
 	})
 
@@ -143,8 +146,8 @@ var _ = Describe("QueueTemplate", func() {
 			params.MessageRetentionPeriod = 20
 		})
 		It("should set queue MessageRetentionPeriod from spec", func() {
-			Expect(queue.MessageRetentionPeriod).To(Equal(20))
-			Expect(dlqueue.MessageRetentionPeriod).To(Equal(20))
+			Expect(primaryQueue.MessageRetentionPeriod).To(Equal(20))
+			Expect(secondaryQueue.MessageRetentionPeriod).To(Equal(20))
 		})
 	})
 
@@ -153,7 +156,7 @@ var _ = Describe("QueueTemplate", func() {
 			params.ReceiveMessageWaitTimeSeconds = 1200
 		})
 		It("should set queue ReceiveMessageWaitTimeSeconds from spec", func() {
-			Expect(queue.ReceiveMessageWaitTimeSeconds).To(Equal(1200))
+			Expect(primaryQueue.ReceiveMessageWaitTimeSeconds).To(Equal(1200))
 		})
 	})
 
@@ -162,7 +165,7 @@ var _ = Describe("QueueTemplate", func() {
 			params.RedriveMaxReceiveCount = 1
 		})
 		It("should set queue ContentBasedDeduplication from spec", func() {
-			policy, ok := queue.RedrivePolicy.(map[string]interface{})
+			policy, ok := primaryQueue.RedrivePolicy.(map[string]interface{})
 			Expect(ok).To(BeTrue())
 			Expect(policy["maxReceiveCount"]).To(Equal(1))
 		})
@@ -173,8 +176,8 @@ var _ = Describe("QueueTemplate", func() {
 			params.VisibilityTimeout = 30
 		})
 		It("should set queue VisibilityTimeout from spec", func() {
-			Expect(queue.VisibilityTimeout).To(Equal(30))
-			Expect(dlqueue.VisibilityTimeout).To(Equal(30))
+			Expect(primaryQueue.VisibilityTimeout).To(Equal(30))
+			Expect(secondaryQueue.VisibilityTimeout).To(Equal(30))
 		})
 	})
 
@@ -182,10 +185,10 @@ var _ = Describe("QueueTemplate", func() {
 		t, err := sqs.QueueTemplate(sqs.QueueParams{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
-			HaveKey(sqs.OutputMainQueueARN),
-			HaveKey(sqs.OutputMainQueueURL),
-			HaveKey(sqs.OutputDeadletterQueueARN),
-			HaveKey(sqs.OutputDeadletterQueueURL),
+			HaveKey(sqs.OutputPrimaryQueueARN),
+			HaveKey(sqs.OutputPrimaryQueueURL),
+			HaveKey(sqs.OutputSecondaryQueueARN),
+			HaveKey(sqs.OutputSecondaryQueueURL),
 		))
 	})
 })

@@ -1,9 +1,14 @@
 package sqs_test
 
 import (
+	"encoding/json"
+
 	"github.com/alphagov/paas-sqs-broker/sqs"
+	goformation "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
+	goformationssm "github.com/awslabs/goformation/v4/cloudformation/ssm"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
+	"github.com/awslabs/goformation/v4/intrinsics"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -12,24 +17,30 @@ var _ = Describe("UserTemplate", func() {
 	var user *goformationiam.User
 	var accessKey *goformationiam.AccessKey
 	var policy *goformationiam.Policy
+	// var credentials *goformationssm.Parameter
 	var params sqs.UserParams
+	var template *goformation.Template
 
 	BeforeEach(func() {
 		params = sqs.UserParams{}
 	})
 
 	JustBeforeEach(func() {
-		t, err := sqs.UserTemplate(params)
+		var err error
+		template, err = sqs.UserTemplate(params)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
-		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
-		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
+		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
+		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
+		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
+		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationssm.Parameter{})))
 		var ok bool
-		user, ok = t.Resources[sqs.ResourceUser].(*goformationiam.User)
+		user, ok = template.Resources[sqs.ResourceUser].(*goformationiam.User)
 		Expect(ok).To(BeTrue())
-		accessKey, ok = t.Resources[sqs.ResourceAccessKey].(*goformationiam.AccessKey)
+		accessKey, ok = template.Resources[sqs.ResourceAccessKey].(*goformationiam.AccessKey)
 		Expect(ok).To(BeTrue())
-		policy, ok = t.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
+		policy, ok = template.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
+		Expect(ok).To(BeTrue())
+		_, ok = template.Resources[sqs.ResourceCredentials].(*goformationssm.Parameter)
 		Expect(ok).To(BeTrue())
 	})
 
@@ -39,12 +50,36 @@ var _ = Describe("UserTemplate", func() {
 		Expect(t.Parameters).To(BeEmpty())
 	})
 
-	Context("when userName is set", func() {
+	It("should create a template for a json blob containing provisioned credentials", func() {
+		out, err := template.JSON()
+		Expect(err).ToNot(HaveOccurred())
+		processed, err := intrinsics.ProcessJSON(out, nil)
+		Expect(err).ToNot(HaveOccurred())
+		var result map[string]interface{}
+		err = json.Unmarshal(processed, &result)
+		Expect(err).ToNot(HaveOccurred())
+		resources := result["Resources"].(map[string]interface{})
+		resource := resources[sqs.ResourceCredentials].(map[string]interface{})
+		properties := resource["Properties"].(map[string]interface{})
+		value := properties["Value"].(string)
+		var credentials map[string]string
+		err = json.Unmarshal([]byte(value), &credentials)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(credentials).To(HaveKey("aws_access_key_id"))
+		Expect(credentials).To(HaveKey("aws_secret_access_key"))
+		Expect(credentials).To(HaveKey("aws_region"))
+		Expect(credentials).To(HaveKey("primary_queue_url"))
+		Expect(credentials).To(HaveKey("secondary_queue_url"))
+	})
+
+	Context("when binding id and prefix are set", func() {
 		BeforeEach(func() {
-			params.UserName = "paas-sqs-broker-a"
+			params.BindingID = "xxxx-xxxx-xxxx"
+			params.ResourcePrefix = "prefixed-path"
 		})
-		It("should have a user name prefixed with broker prefix", func() {
-			Expect(user.UserName).To(Equal("paas-sqs-broker-a"))
+		It("should set the user name and path", func() {
+			Expect(user.UserName).To(Equal("binding-xxxx-xxxx-xxxx"))
+			Expect(user.Path).To(Equal("/prefixed-path/"))
 		})
 
 	})
@@ -70,12 +105,12 @@ var _ = Describe("UserTemplate", func() {
 		})
 	})
 
-	Context("when QueueARN is set", func() {
+	Context("when queue ARNs are set", func() {
 		BeforeEach(func() {
-			params.QueueARN = "abc"
-			params.DLQueueARN = "qwe"
+			params.PrimaryQueueARN = "abc"
+			params.SecondaryQueueARN = "qwe"
 		})
-		It("the policy is scoped to the queue ARN", func() {
+		It("the policy is scoped to the queue ARNs", func() {
 			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
 			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
 			Expect(policyDoc.Statement).To(HaveLen(1))
@@ -100,12 +135,11 @@ var _ = Describe("UserTemplate", func() {
 		Expect(accessKey.UserName).ToNot(BeEmpty())
 	})
 
-	It("should have outputs for connection details", func() {
+	It("should have an output for the secretsmanager path to credentials", func() {
 		t, err := sqs.UserTemplate(sqs.UserParams{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
-			HaveKey(sqs.OutputAccessKeyID),
-			HaveKey(sqs.OutputSecretAccessKey),
+			HaveKey(sqs.OutputCredentialsPath),
 		))
 	})
 })
