@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/ssm"
 	goformation "github.com/awslabs/goformation/v4"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
 	goformationsqs "github.com/awslabs/goformation/v4/cloudformation/sqs"
@@ -80,7 +80,7 @@ var _ = Describe("Provider", func() {
 			var ok bool
 
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok = t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
+			queue, ok = t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
 			Expect(ok).To(BeTrue())
 
 		})
@@ -282,9 +282,8 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("Should construct queue name correctly", func() {
-			// the queue resource should have had values from provisionData passed through
-			queueName := fmt.Sprintf("testprefix-%s", provisionData.InstanceID)
-			Expect(queue.QueueName).To(Equal(queueName))
+			Expect(queue.QueueName).To(HavePrefix("testprefix-"))
+			Expect(queue.QueueName).To(ContainSubstring(provisionData.InstanceID))
 		})
 
 	})
@@ -325,7 +324,7 @@ var _ = Describe("Provider", func() {
 
 			// we should see a queue resource
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok := t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
+			queue, ok := t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
 			Expect(ok).To(BeTrue())
 
 			// fifo should be set to false because we asked for a standard queue
@@ -352,8 +351,8 @@ var _ = Describe("Provider", func() {
 			))
 
 			// the queue resource should have had values from provisionData passed through
-			queueName := fmt.Sprintf("testprefix-%s", provisionData.InstanceID)
-			Expect(queue.QueueName).To(Equal(queueName))
+			Expect(queue.QueueName).To(HavePrefix("testprefix-"))
+			Expect(queue.QueueName).To(ContainSubstring(provisionData.InstanceID))
 
 			// we set this in provdata
 			Expect(queue.ContentBasedDeduplication).To(BeTrue())
@@ -508,99 +507,93 @@ var _ = Describe("Provider", func() {
 	)
 
 	Describe("GetBinding", func() {
-		It("error when presented with a non-existent binding", func() {
-			fakeCfnClient.DescribeStacksWithContextReturnsOnCall(
-				0,
-				&cloudformation.DescribeStacksOutput{
-					Stacks: []*cloudformation.Stack{},
-				},
-				&fakeClient.MockAWSError{
-					C: "ValidationError",
-					M: "Stack with id testprefix-09E1993E-62E2-4040-ADF2-4D3EC741EFE6 does not exist",
-				},
-			)
+		var (
+			bindingSpec *domain.GetBindingSpec
+			bindingErr  error
+		)
 
-			_, err := sqsProvider.GetBinding(context.Background(), provideriface.GetBindData{
-				BindingID: "09E1993E-62E2-4040-ADF2-4D3EC741EFE6",
+		JustBeforeEach(func() {
+			bindingSpec, bindingErr = sqsProvider.GetBinding(context.Background(), provideriface.GetBindData{
+				InstanceID: "instance-id",
+				BindingID:  "binding-id",
 			})
-			Expect(err).To(MatchError(sqs.ErrStackNotFound))
 		})
 
-		It("returns some credentials", func() {
-			instanceID := "09E1993E-62E2-4040-ADF2-4D3EC741EFE6"
-			bindingID := "c6ea1339-7ade-4952-9247-e419b59e7b67"
-			bindingStackOutput := &cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
-					{
-						StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
-						Outputs: []*cloudformation.Output{
-							{
-								OutputKey:   aws.String(sqs.OutputAccessKeyID),
-								OutputValue: aws.String("michael"),
-							},
-							{
-								OutputKey:   aws.String(sqs.OutputSecretAccessKey),
-								OutputValue: aws.String("phyllis"),
-							},
-						},
-					},
-				},
-			}
-			queueStackOutput := &cloudformation.DescribeStacksOutput{
-				Stacks: []*cloudformation.Stack{
-					{
-						StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
-						Outputs: []*cloudformation.Output{
-							{
-								OutputKey:   aws.String(sqs.OutputMainQueueARN),
-								OutputValue: aws.String("orange"),
-							},
-							{
-								OutputKey:   aws.String(sqs.OutputDeadletterQueueARN),
-								OutputValue: aws.String("apple"),
-							},
-							{
-								OutputKey:   aws.String(sqs.OutputMainQueueURL),
-								OutputValue: aws.String("https://flambouyant/"),
-							},
-							{
-								OutputKey:   aws.String(sqs.OutputDeadletterQueueURL),
-								OutputValue: aws.String("https://pilchard/"),
-							},
-							{
-								OutputKey:   aws.String(sqs.OutputRegion),
-								OutputValue: aws.String("antartica"),
-							},
-						},
-					},
-				},
-			}
-			fakeCfnClient.DescribeStacksWithContextStub = func(ctx context.Context, input *cloudformation.DescribeStacksInput, opts ...request.Option) (*cloudformation.DescribeStacksOutput, error) {
-				if *input.StackName == fmt.Sprintf("testprefix-%s", bindingID) {
-					return bindingStackOutput, nil
-				} else if *input.StackName == fmt.Sprintf("testprefix-%s", instanceID) {
-					return queueStackOutput, nil
-				} else {
-					panic("describe stacks stub: expected stack name to match binding or instance")
-				}
-			}
-
-			spec, err := sqsProvider.GetBinding(context.Background(), provideriface.GetBindData{
-				InstanceID: instanceID,
-				BindingID:  bindingID,
+		Context("when binding stack does not exist", func() {
+			BeforeEach(func() {
+				fakeCfnClient.DescribeStacksWithContextReturnsOnCall(0, nil, &fakeClient.MockAWSError{
+					C: "ValidationError",
+					M: "Stack with id testprefix-09E1993E-62E2-4040-ADF2-4D3EC741EFE6 does not exist",
+				})
 			})
-			Expect(fakeCfnClient.DescribeStacksWithContextCallCount()).To(Equal(2))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(spec.Credentials).ToNot(BeNil())
-			creds, err := json.Marshal(spec.Credentials)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(creds).To(MatchJSON(`{
-				"AccessKeyID": "michael",
-				"SecretAccessKey": "phyllis",
-				"Region": "antartica",
-				"QueueURL": "https://flambouyant/",
-				"DLQueueURL": "https://pilchard/"
-			}`))
+			It("error when presented with a non-existent binding", func() {
+				Expect(bindingErr).To(MatchError(sqs.ErrStackNotFound))
+			})
+		})
+
+		Context("when stack exists but secret does not", func() {
+			BeforeEach(func() {
+				fakeCfnClient.DescribeStacksWithContextReturns(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{
+						{
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Outputs: []*cloudformation.Output{
+								{
+									OutputKey:   aws.String(sqs.OutputCredentialsPath),
+									OutputValue: aws.String("/path/to/creds"),
+								},
+							},
+						},
+					},
+				}, nil)
+				fakeCfnClient.GetParameterWithContextReturnsOnCall(0, nil, fmt.Errorf("secret-not-found"))
+			})
+			It("decode the credentials from secretmanager and return them", func() {
+				Expect(bindingErr).To(MatchError("secret-not-found"))
+				Expect(bindingSpec).To(BeNil())
+			})
+		})
+
+		Context("when stack exists and secret is present", func() {
+			var (
+				secretValue = `{"secret_credential_value": "shhhh"}`
+			)
+			BeforeEach(func() {
+				fakeCfnClient.DescribeStacksWithContextReturns(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{
+						{
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Outputs: []*cloudformation.Output{
+								{
+									OutputKey:   aws.String(sqs.OutputCredentialsPath),
+									OutputValue: aws.String("/path/to/creds"),
+								},
+							},
+						},
+					},
+				}, nil)
+				fakeCfnClient.GetParameterWithContextReturnsOnCall(0, &ssm.GetParameterOutput{
+					Parameter: &ssm.Parameter{
+						Value: aws.String(secretValue),
+					},
+				}, nil)
+			})
+
+			It("should have fetched the state of the stack", func() {
+				Expect(fakeCfnClient.DescribeStacksWithContextCallCount()).To(Equal(1))
+			})
+			It("should request secret from secretsmanager based on the path in the output", func() {
+				Expect(fakeCfnClient.GetParameterWithContextCallCount()).To(Equal(1))
+				_, req, _ := fakeCfnClient.GetParameterWithContextArgsForCall(0)
+				Expect(req).ToNot(BeNil())
+				Expect(*req.Name).To(Equal("/path/to/creds"))
+			})
+			It("decode the credentials from secretmanager and return them", func() {
+				Expect(bindingSpec.Credentials).ToNot(BeNil())
+				creds, err := json.Marshal(bindingSpec.Credentials)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(creds).To(MatchJSON(secretValue))
+			})
 		})
 	})
 
@@ -716,11 +709,11 @@ var _ = Describe("Provider", func() {
 						StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 						Outputs: []*cloudformation.Output{
 							{
-								OutputKey:   aws.String(sqs.OutputMainQueueARN),
+								OutputKey:   aws.String(sqs.OutputPrimaryQueueARN),
 								OutputValue: aws.String(arn1),
 							},
 							{
-								OutputKey:   aws.String(sqs.OutputDeadletterQueueARN),
+								OutputKey:   aws.String(sqs.OutputSecondaryQueueARN),
 								OutputValue: aws.String(arn2),
 							},
 						},
@@ -784,7 +777,6 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("should use create user name with binding id", func() {
-			Expect(user.UserName).To(HavePrefix("testprefix-"))
 			Expect(user.UserName).To(HaveSuffix(bindData.BindingID))
 		})
 
@@ -850,7 +842,7 @@ var _ = Describe("Provider", func() {
 
 			// we should see a queue resource
 			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok := t.Resources[sqs.ResourceMainQueue].(*goformationsqs.Queue)
+			queue, ok := t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
 			Expect(ok).To(BeTrue())
 
 			// fifo should be set to true because we asked for a fifo queue
@@ -877,8 +869,8 @@ var _ = Describe("Provider", func() {
 			))
 
 			// the queue resource should have had values from provisionData passed through
-			queueName := fmt.Sprintf("testprefix-%s", updateData.InstanceID)
-			Expect(queue.QueueName).To(Equal(queueName))
+			Expect(queue.QueueName).To(HavePrefix("testprefix-"))
+			Expect(queue.QueueName).To(ContainSubstring(updateData.InstanceID))
 
 			// we set this in provdata
 			Expect(queue.ContentBasedDeduplication).To(BeTrue())
