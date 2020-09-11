@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
 var configFilePath string
@@ -57,10 +57,10 @@ func main() {
 
 	sqsProvider := &sqs.Provider{
 		Client: struct {
-			*ssm.SSM
+			*secretsmanager.SecretsManager
 			*cloudformation.CloudFormation
 		}{
-			SSM:            ssm.New(sess, cfg),
+			SecretsManager: secretsmanager.New(sess, cfg),
 			CloudFormation: cloudformation.New(sess, cfg),
 		},
 		Environment:         sqsClientConfig.DeployEnvironment,

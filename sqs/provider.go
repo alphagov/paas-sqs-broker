@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/pivotal-cf/brokerapi/domain"
 )
@@ -341,18 +341,18 @@ func (s *Provider) GetBinding(ctx context.Context, getBindingData provideriface.
 		return nil, err
 	}
 
-	credentialsPath := getStackOutput(userStack, OutputCredentialsPath)
-	res, err := s.Client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name: aws.String(credentialsPath),
+	credentialsARN := getStackOutput(userStack, OutputCredentialsARN)
+	res, err := s.Client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: aws.String(credentialsARN),
 	})
 	if err != nil {
 		return nil, err
-	} else if res.Parameter == nil || res.Parameter.Value == nil {
-		return nil, fmt.Errorf("invalid response from parameter store")
+	} else if res.SecretString == nil {
+		return nil, fmt.Errorf("invalid response from secrets manager")
 	}
 
 	var creds interface{}
-	if err := json.Unmarshal([]byte(*res.Parameter.Value), &creds); err != nil {
+	if err := json.Unmarshal([]byte(*res.SecretString), &creds); err != nil {
 		return nil, err
 	}
 

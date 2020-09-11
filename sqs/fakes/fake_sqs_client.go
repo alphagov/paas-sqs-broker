@@ -8,7 +8,7 @@ import (
 	"github.com/alphagov/paas-sqs-broker/sqs"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
 type FakeClient struct {
@@ -57,19 +57,19 @@ type FakeClient struct {
 		result1 *cloudformation.DescribeStacksOutput
 		result2 error
 	}
-	GetParameterWithContextStub        func(context.Context, *ssm.GetParameterInput, ...request.Option) (*ssm.GetParameterOutput, error)
-	getParameterWithContextMutex       sync.RWMutex
-	getParameterWithContextArgsForCall []struct {
+	GetSecretValueWithContextStub        func(context.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
+	getSecretValueWithContextMutex       sync.RWMutex
+	getSecretValueWithContextArgsForCall []struct {
 		arg1 context.Context
-		arg2 *ssm.GetParameterInput
+		arg2 *secretsmanager.GetSecretValueInput
 		arg3 []request.Option
 	}
-	getParameterWithContextReturns struct {
-		result1 *ssm.GetParameterOutput
+	getSecretValueWithContextReturns struct {
+		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}
-	getParameterWithContextReturnsOnCall map[int]struct {
-		result1 *ssm.GetParameterOutput
+	getSecretValueWithContextReturnsOnCall map[int]struct {
+		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}
 	UpdateStackWithContextStub        func(context.Context, *cloudformation.UpdateStackInput, ...request.Option) (*cloudformation.UpdateStackOutput, error)
@@ -286,67 +286,67 @@ func (fake *FakeClient) DescribeStacksWithContextReturnsOnCall(i int, result1 *c
 	}{result1, result2}
 }
 
-func (fake *FakeClient) GetParameterWithContext(arg1 context.Context, arg2 *ssm.GetParameterInput, arg3 ...request.Option) (*ssm.GetParameterOutput, error) {
-	fake.getParameterWithContextMutex.Lock()
-	ret, specificReturn := fake.getParameterWithContextReturnsOnCall[len(fake.getParameterWithContextArgsForCall)]
-	fake.getParameterWithContextArgsForCall = append(fake.getParameterWithContextArgsForCall, struct {
+func (fake *FakeClient) GetSecretValueWithContext(arg1 context.Context, arg2 *secretsmanager.GetSecretValueInput, arg3 ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	ret, specificReturn := fake.getSecretValueWithContextReturnsOnCall[len(fake.getSecretValueWithContextArgsForCall)]
+	fake.getSecretValueWithContextArgsForCall = append(fake.getSecretValueWithContextArgsForCall, struct {
 		arg1 context.Context
-		arg2 *ssm.GetParameterInput
+		arg2 *secretsmanager.GetSecretValueInput
 		arg3 []request.Option
 	}{arg1, arg2, arg3})
-	fake.recordInvocation("GetParameterWithContext", []interface{}{arg1, arg2, arg3})
-	fake.getParameterWithContextMutex.Unlock()
-	if fake.GetParameterWithContextStub != nil {
-		return fake.GetParameterWithContextStub(arg1, arg2, arg3...)
+	fake.recordInvocation("GetSecretValueWithContext", []interface{}{arg1, arg2, arg3})
+	fake.getSecretValueWithContextMutex.Unlock()
+	if fake.GetSecretValueWithContextStub != nil {
+		return fake.GetSecretValueWithContextStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getParameterWithContextReturns
+	fakeReturns := fake.getSecretValueWithContextReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeClient) GetParameterWithContextCallCount() int {
-	fake.getParameterWithContextMutex.RLock()
-	defer fake.getParameterWithContextMutex.RUnlock()
-	return len(fake.getParameterWithContextArgsForCall)
+func (fake *FakeClient) GetSecretValueWithContextCallCount() int {
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	return len(fake.getSecretValueWithContextArgsForCall)
 }
 
-func (fake *FakeClient) GetParameterWithContextCalls(stub func(context.Context, *ssm.GetParameterInput, ...request.Option) (*ssm.GetParameterOutput, error)) {
-	fake.getParameterWithContextMutex.Lock()
-	defer fake.getParameterWithContextMutex.Unlock()
-	fake.GetParameterWithContextStub = stub
+func (fake *FakeClient) GetSecretValueWithContextCalls(stub func(context.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)) {
+	fake.getSecretValueWithContextMutex.Lock()
+	defer fake.getSecretValueWithContextMutex.Unlock()
+	fake.GetSecretValueWithContextStub = stub
 }
 
-func (fake *FakeClient) GetParameterWithContextArgsForCall(i int) (context.Context, *ssm.GetParameterInput, []request.Option) {
-	fake.getParameterWithContextMutex.RLock()
-	defer fake.getParameterWithContextMutex.RUnlock()
-	argsForCall := fake.getParameterWithContextArgsForCall[i]
+func (fake *FakeClient) GetSecretValueWithContextArgsForCall(i int) (context.Context, *secretsmanager.GetSecretValueInput, []request.Option) {
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	argsForCall := fake.getSecretValueWithContextArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeClient) GetParameterWithContextReturns(result1 *ssm.GetParameterOutput, result2 error) {
-	fake.getParameterWithContextMutex.Lock()
-	defer fake.getParameterWithContextMutex.Unlock()
-	fake.GetParameterWithContextStub = nil
-	fake.getParameterWithContextReturns = struct {
-		result1 *ssm.GetParameterOutput
+func (fake *FakeClient) GetSecretValueWithContextReturns(result1 *secretsmanager.GetSecretValueOutput, result2 error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	defer fake.getSecretValueWithContextMutex.Unlock()
+	fake.GetSecretValueWithContextStub = nil
+	fake.getSecretValueWithContextReturns = struct {
+		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeClient) GetParameterWithContextReturnsOnCall(i int, result1 *ssm.GetParameterOutput, result2 error) {
-	fake.getParameterWithContextMutex.Lock()
-	defer fake.getParameterWithContextMutex.Unlock()
-	fake.GetParameterWithContextStub = nil
-	if fake.getParameterWithContextReturnsOnCall == nil {
-		fake.getParameterWithContextReturnsOnCall = make(map[int]struct {
-			result1 *ssm.GetParameterOutput
+func (fake *FakeClient) GetSecretValueWithContextReturnsOnCall(i int, result1 *secretsmanager.GetSecretValueOutput, result2 error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	defer fake.getSecretValueWithContextMutex.Unlock()
+	fake.GetSecretValueWithContextStub = nil
+	if fake.getSecretValueWithContextReturnsOnCall == nil {
+		fake.getSecretValueWithContextReturnsOnCall = make(map[int]struct {
+			result1 *secretsmanager.GetSecretValueOutput
 			result2 error
 		})
 	}
-	fake.getParameterWithContextReturnsOnCall[i] = struct {
-		result1 *ssm.GetParameterOutput
+	fake.getSecretValueWithContextReturnsOnCall[i] = struct {
+		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}{result1, result2}
 }
@@ -425,8 +425,8 @@ func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	defer fake.deleteStackWithContextMutex.RUnlock()
 	fake.describeStacksWithContextMutex.RLock()
 	defer fake.describeStacksWithContextMutex.RUnlock()
-	fake.getParameterWithContextMutex.RLock()
-	defer fake.getParameterWithContextMutex.RUnlock()
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
 	fake.updateStackWithContextMutex.RLock()
 	defer fake.updateStackWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

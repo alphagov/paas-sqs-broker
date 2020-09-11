@@ -6,7 +6,7 @@ import (
 
 	goformation "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
-	goformationssm "github.com/awslabs/goformation/v4/cloudformation/ssm"
+	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 )
 
@@ -18,7 +18,7 @@ const (
 )
 
 const (
-	OutputCredentialsPath = "CredentialsPath"
+	OutputCredentialsARN = "CredentialsARN"
 )
 
 type UserParams struct {
@@ -116,18 +116,17 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 		},
 	}
 
-	template.Resources[ResourceCredentials] = &goformationssm.Parameter{
-		Type:        "String",
-		Description: "Binding credentials",
-		Name:        fmt.Sprintf("/%s/binding/%s/credentials", params.ResourcePrefix, params.BindingID),
-		Value:       goformation.Sub(credentialsTemplate),
+	template.Resources[ResourceCredentials] = &goformationsecretsmanager.Secret{
+		Description:  "Binding credentials",
+		Name:         fmt.Sprintf("%s-%s", params.ResourcePrefix, params.BindingID),
+		SecretString: goformation.Sub(credentialsTemplate),
 	}
 
-	template.Outputs[OutputCredentialsPath] = goformation.Output{
+	template.Outputs[OutputCredentialsARN] = goformation.Output{
 		Description: "Path to the binding credentials",
 		Value:       goformation.Ref(ResourceCredentials),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.BindingID, OutputCredentialsPath), // export should not be required, this is a goformation bug
+			Name: fmt.Sprintf("%s-%s", params.BindingID, OutputCredentialsARN), // export should not be required, this is a goformation bug
 		},
 	}
 

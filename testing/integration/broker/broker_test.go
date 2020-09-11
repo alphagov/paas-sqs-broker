@@ -15,8 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	awssqs "github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/ssm"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-service-broker-base/broker"
@@ -198,10 +198,10 @@ func initialise() (*sqs.Config, brokertesting.BrokerTester) {
 
 	sqsProvider := &sqs.Provider{
 		Client: struct {
-			*ssm.SSM
+			*secretsmanager.SecretsManager
 			*cloudformation.CloudFormation
 		}{
-			SSM:            ssm.New(sess),
+			SecretsManager: secretsmanager.New(sess),
 			CloudFormation: cloudformation.New(sess),
 		},
 		Environment:         sqsClientConfig.DeployEnvironment,

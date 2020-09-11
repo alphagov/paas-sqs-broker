@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	goformation "github.com/awslabs/goformation/v4"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
 	goformationsqs "github.com/awslabs/goformation/v4/cloudformation/sqs"
@@ -539,14 +539,14 @@ var _ = Describe("Provider", func() {
 							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 							Outputs: []*cloudformation.Output{
 								{
-									OutputKey:   aws.String(sqs.OutputCredentialsPath),
-									OutputValue: aws.String("/path/to/creds"),
+									OutputKey:   aws.String(sqs.OutputCredentialsARN),
+									OutputValue: aws.String("arn:to:creds"),
 								},
 							},
 						},
 					},
 				}, nil)
-				fakeCfnClient.GetParameterWithContextReturnsOnCall(0, nil, fmt.Errorf("secret-not-found"))
+				fakeCfnClient.GetSecretValueWithContextReturnsOnCall(0, nil, fmt.Errorf("secret-not-found"))
 			})
 			It("decode the credentials from secretmanager and return them", func() {
 				Expect(bindingErr).To(MatchError("secret-not-found"))
@@ -565,17 +565,15 @@ var _ = Describe("Provider", func() {
 							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 							Outputs: []*cloudformation.Output{
 								{
-									OutputKey:   aws.String(sqs.OutputCredentialsPath),
-									OutputValue: aws.String("/path/to/creds"),
+									OutputKey:   aws.String(sqs.OutputCredentialsARN),
+									OutputValue: aws.String("arn:to:creds"),
 								},
 							},
 						},
 					},
 				}, nil)
-				fakeCfnClient.GetParameterWithContextReturnsOnCall(0, &ssm.GetParameterOutput{
-					Parameter: &ssm.Parameter{
-						Value: aws.String(secretValue),
-					},
+				fakeCfnClient.GetSecretValueWithContextReturnsOnCall(0, &secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String(secretValue),
 				}, nil)
 			})
 
@@ -583,10 +581,10 @@ var _ = Describe("Provider", func() {
 				Expect(fakeCfnClient.DescribeStacksWithContextCallCount()).To(Equal(1))
 			})
 			It("should request secret from secretsmanager based on the path in the output", func() {
-				Expect(fakeCfnClient.GetParameterWithContextCallCount()).To(Equal(1))
-				_, req, _ := fakeCfnClient.GetParameterWithContextArgsForCall(0)
+				Expect(fakeCfnClient.GetSecretValueWithContextCallCount()).To(Equal(1))
+				_, req, _ := fakeCfnClient.GetSecretValueWithContextArgsForCall(0)
 				Expect(req).ToNot(BeNil())
-				Expect(*req.Name).To(Equal("/path/to/creds"))
+				Expect(*req.SecretId).To(Equal("arn:to:creds"))
 			})
 			It("decode the credentials from secretmanager and return them", func() {
 				Expect(bindingSpec.Credentials).ToNot(BeNil())

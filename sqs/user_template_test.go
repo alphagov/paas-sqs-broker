@@ -6,7 +6,7 @@ import (
 	"github.com/alphagov/paas-sqs-broker/sqs"
 	goformation "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
-	goformationssm "github.com/awslabs/goformation/v4/cloudformation/ssm"
+	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 	"github.com/awslabs/goformation/v4/intrinsics"
 	. "github.com/onsi/ginkgo"
@@ -17,7 +17,6 @@ var _ = Describe("UserTemplate", func() {
 	var user *goformationiam.User
 	var accessKey *goformationiam.AccessKey
 	var policy *goformationiam.Policy
-	// var credentials *goformationssm.Parameter
 	var params sqs.UserParams
 	var template *goformation.Template
 
@@ -32,7 +31,7 @@ var _ = Describe("UserTemplate", func() {
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
-		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationssm.Parameter{})))
+		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsecretsmanager.Secret{})))
 		var ok bool
 		user, ok = template.Resources[sqs.ResourceUser].(*goformationiam.User)
 		Expect(ok).To(BeTrue())
@@ -40,7 +39,7 @@ var _ = Describe("UserTemplate", func() {
 		Expect(ok).To(BeTrue())
 		policy, ok = template.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
 		Expect(ok).To(BeTrue())
-		_, ok = template.Resources[sqs.ResourceCredentials].(*goformationssm.Parameter)
+		_, ok = template.Resources[sqs.ResourceCredentials].(*goformationsecretsmanager.Secret)
 		Expect(ok).To(BeTrue())
 	})
 
@@ -61,7 +60,7 @@ var _ = Describe("UserTemplate", func() {
 		resources := result["Resources"].(map[string]interface{})
 		resource := resources[sqs.ResourceCredentials].(map[string]interface{})
 		properties := resource["Properties"].(map[string]interface{})
-		value := properties["Value"].(string)
+		value := properties["SecretString"].(string)
 		var credentials map[string]string
 		err = json.Unmarshal([]byte(value), &credentials)
 		Expect(err).ToNot(HaveOccurred())
@@ -139,7 +138,7 @@ var _ = Describe("UserTemplate", func() {
 		t, err := sqs.UserTemplate(sqs.UserParams{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
-			HaveKey(sqs.OutputCredentialsPath),
+			HaveKey(sqs.OutputCredentialsARN),
 		))
 	})
 })
