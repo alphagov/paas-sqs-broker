@@ -65,8 +65,8 @@ github.com/aws/aws-sdk-go/private/protocol/query/queryutil
 github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/cloudformation
+github.com/aws/aws-sdk-go/service/secretsmanager
 github.com/aws/aws-sdk-go/service/sqs
-github.com/aws/aws-sdk-go/service/ssm
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/awslabs/goformation/v4 v4.15.0
