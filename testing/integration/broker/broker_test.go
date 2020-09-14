@@ -14,7 +14,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	awssqs "github.com/aws/aws-sdk-go/service/sqs"
 
 	"code.cloudfoundry.org/lager"
@@ -98,30 +99,30 @@ var _ = Describe("Broker", func() {
 		By("Asserting the credentials returned work for both reading and writing")
 		var ret struct {
 			Credentials struct {
-				AccessKeyID     string
-				SecretAccessKey string
-				QueueURL        string
-				DLQueueURL      string
-				Region          string
+				AWSAccessKeyID     string `json:"aws_access_key_id"`
+				AWSSecretAccessKey string `json:"aws_secret_access_key"`
+				AWSRegion          string `json:"aws_region"`
+				PrimaryQueueURL    string `json:"primary_queue_url"`
+				SecondaryQueueURL  string `json:"secondary_queue_url"`
 			}
 		}
 		err := json.NewDecoder(res.Result().Body).Decode(&ret)
 		Expect(err).ToNot(HaveOccurred())
 
 		sess := session.Must(session.NewSession(&aws.Config{
-			Region:      aws.String(ret.Credentials.Region),
-			Credentials: credentials.NewStaticCredentials(ret.Credentials.AccessKeyID, ret.Credentials.SecretAccessKey, ""),
+			Region:      aws.String(ret.Credentials.AWSRegion),
+			Credentials: credentials.NewStaticCredentials(ret.Credentials.AWSAccessKeyID, ret.Credentials.AWSSecretAccessKey, ""),
 		}))
 		sqsClient := awssqs.New(sess)
 
 		_, err = sqsClient.SendMessage(&awssqs.SendMessageInput{
 			MessageBody: aws.String("Hello World."),
-			QueueUrl:    aws.String(ret.Credentials.QueueURL),
+			QueueUrl:    aws.String(ret.Credentials.PrimaryQueueURL),
 		})
 		Expect(err).ToNot(HaveOccurred())
 
 		_, err = sqsClient.ReceiveMessage(&awssqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(ret.Credentials.QueueURL),
+			QueueUrl:            aws.String(ret.Credentials.PrimaryQueueURL),
 			MaxNumberOfMessages: aws.Int64(10),
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -196,7 +197,13 @@ func initialise() (*sqs.Config, brokertesting.BrokerTester) {
 	sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
 
 	sqsProvider := &sqs.Provider{
-		Client:              cfn.New(sess),
+		Client: struct {
+			*secretsmanager.SecretsManager
+			*cloudformation.CloudFormation
+		}{
+			SecretsManager: secretsmanager.New(sess),
+			CloudFormation: cloudformation.New(sess),
+		},
 		Environment:         sqsClientConfig.DeployEnvironment,
 		ResourcePrefix:      sqsClientConfig.ResourcePrefix,
 		PermissionsBoundary: sqsClientConfig.PermissionsBoundary,

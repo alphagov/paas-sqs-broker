@@ -8,6 +8,7 @@ import (
 	"github.com/alphagov/paas-sqs-broker/sqs"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
 type FakeClient struct {
@@ -54,6 +55,21 @@ type FakeClient struct {
 	}
 	describeStacksWithContextReturnsOnCall map[int]struct {
 		result1 *cloudformation.DescribeStacksOutput
+		result2 error
+	}
+	GetSecretValueWithContextStub        func(context.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
+	getSecretValueWithContextMutex       sync.RWMutex
+	getSecretValueWithContextArgsForCall []struct {
+		arg1 context.Context
+		arg2 *secretsmanager.GetSecretValueInput
+		arg3 []request.Option
+	}
+	getSecretValueWithContextReturns struct {
+		result1 *secretsmanager.GetSecretValueOutput
+		result2 error
+	}
+	getSecretValueWithContextReturnsOnCall map[int]struct {
+		result1 *secretsmanager.GetSecretValueOutput
 		result2 error
 	}
 	UpdateStackWithContextStub        func(context.Context, *cloudformation.UpdateStackInput, ...request.Option) (*cloudformation.UpdateStackOutput, error)
@@ -270,6 +286,71 @@ func (fake *FakeClient) DescribeStacksWithContextReturnsOnCall(i int, result1 *c
 	}{result1, result2}
 }
 
+func (fake *FakeClient) GetSecretValueWithContext(arg1 context.Context, arg2 *secretsmanager.GetSecretValueInput, arg3 ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	ret, specificReturn := fake.getSecretValueWithContextReturnsOnCall[len(fake.getSecretValueWithContextArgsForCall)]
+	fake.getSecretValueWithContextArgsForCall = append(fake.getSecretValueWithContextArgsForCall, struct {
+		arg1 context.Context
+		arg2 *secretsmanager.GetSecretValueInput
+		arg3 []request.Option
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetSecretValueWithContext", []interface{}{arg1, arg2, arg3})
+	fake.getSecretValueWithContextMutex.Unlock()
+	if fake.GetSecretValueWithContextStub != nil {
+		return fake.GetSecretValueWithContextStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getSecretValueWithContextReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) GetSecretValueWithContextCallCount() int {
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	return len(fake.getSecretValueWithContextArgsForCall)
+}
+
+func (fake *FakeClient) GetSecretValueWithContextCalls(stub func(context.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)) {
+	fake.getSecretValueWithContextMutex.Lock()
+	defer fake.getSecretValueWithContextMutex.Unlock()
+	fake.GetSecretValueWithContextStub = stub
+}
+
+func (fake *FakeClient) GetSecretValueWithContextArgsForCall(i int) (context.Context, *secretsmanager.GetSecretValueInput, []request.Option) {
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
+	argsForCall := fake.getSecretValueWithContextArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) GetSecretValueWithContextReturns(result1 *secretsmanager.GetSecretValueOutput, result2 error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	defer fake.getSecretValueWithContextMutex.Unlock()
+	fake.GetSecretValueWithContextStub = nil
+	fake.getSecretValueWithContextReturns = struct {
+		result1 *secretsmanager.GetSecretValueOutput
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) GetSecretValueWithContextReturnsOnCall(i int, result1 *secretsmanager.GetSecretValueOutput, result2 error) {
+	fake.getSecretValueWithContextMutex.Lock()
+	defer fake.getSecretValueWithContextMutex.Unlock()
+	fake.GetSecretValueWithContextStub = nil
+	if fake.getSecretValueWithContextReturnsOnCall == nil {
+		fake.getSecretValueWithContextReturnsOnCall = make(map[int]struct {
+			result1 *secretsmanager.GetSecretValueOutput
+			result2 error
+		})
+	}
+	fake.getSecretValueWithContextReturnsOnCall[i] = struct {
+		result1 *secretsmanager.GetSecretValueOutput
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeClient) UpdateStackWithContext(arg1 context.Context, arg2 *cloudformation.UpdateStackInput, arg3 ...request.Option) (*cloudformation.UpdateStackOutput, error) {
 	fake.updateStackWithContextMutex.Lock()
 	ret, specificReturn := fake.updateStackWithContextReturnsOnCall[len(fake.updateStackWithContextArgsForCall)]
@@ -344,6 +425,8 @@ func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	defer fake.deleteStackWithContextMutex.RUnlock()
 	fake.describeStacksWithContextMutex.RLock()
 	defer fake.describeStacksWithContextMutex.RUnlock()
+	fake.getSecretValueWithContextMutex.RLock()
+	defer fake.getSecretValueWithContextMutex.RUnlock()
 	fake.updateStackWithContextMutex.RLock()
 	defer fake.updateStackWithContextMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

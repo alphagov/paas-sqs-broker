@@ -1,7 +1,7 @@
 
 .PHONY: test
 test:
-	go run github.com/onsi/ginkgo/ginkgo -v ./...
+	go run github.com/onsi/ginkgo/ginkgo -v -mod=vendor ./...
 
 .PHONY: generate
 generate:

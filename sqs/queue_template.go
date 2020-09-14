@@ -9,16 +9,15 @@ import (
 )
 
 const (
-	ResourceMainQueue       = "MainQueue"
-	ResourceDeadletterQueue = "DeadletterQueue"
+	ResourcePrimaryQueue   = "PrimaryQueue"
+	ResourceSecondaryQueue = "SecondaryQueue"
 )
 
 const (
-	OutputMainQueueURL       = "MainQueueURL"
-	OutputMainQueueARN       = "MainQueueARN"
-	OutputDeadletterQueueURL = "DeadletterQueueURL"
-	OutputDeadletterQueueARN = "DeadletterQueueARN"
-	OutputRegion             = "Region"
+	OutputPrimaryQueueURL   = "PrimaryQueueURL"
+	OutputPrimaryQueueARN   = "PrimaryQueueARN"
+	OutputSecondaryQueueURL = "SecondaryQueueURL"
+	OutputSecondaryQueueARN = "SecondaryQueueARN"
 )
 
 type QueueParams struct {
@@ -89,18 +88,18 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 	var redrivePolicy interface{}
 	if params.RedriveMaxReceiveCount > 0 {
 		redrivePolicy = map[string]interface{}{
-			"deadLetterTargetArn": goformation.GetAtt(ResourceDeadletterQueue, "Arn"),
+			"deadLetterTargetArn": goformation.GetAtt(ResourceSecondaryQueue, "Arn"),
 			"maxReceiveCount":     params.RedriveMaxReceiveCount,
 		}
 	} else {
 		redrivePolicy = ""
 	}
 
-	template.Resources[ResourceMainQueue] = &goformationsqs.Queue{
-		QueueName: params.QueueName,
+	template.Resources[ResourcePrimaryQueue] = &goformationsqs.Queue{
+		QueueName: fmt.Sprintf("%s-pri", params.QueueName),
 		Tags: append(tags, goformationtags.Tag{
 			Key:   "QueueType",
-			Value: "Main",
+			Value: "Primary",
 		}),
 		ContentBasedDeduplication:     params.ContentBasedDeduplication,
 		DelaySeconds:                  params.DelaySeconds,
@@ -112,12 +111,11 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 		VisibilityTimeout:             params.VisibilityTimeout,
 	}
 
-	dlQueueName := fmt.Sprintf("%s-dl", params.QueueName)
-	template.Resources[ResourceDeadletterQueue] = &goformationsqs.Queue{
-		QueueName: dlQueueName,
+	template.Resources[ResourceSecondaryQueue] = &goformationsqs.Queue{
+		QueueName: fmt.Sprintf("%s-sec", params.QueueName),
 		Tags: append(tags, goformationtags.Tag{
 			Key:   "QueueType",
-			Value: "Dead-Letter",
+			Value: "Secondary",
 		}),
 		FifoQueue:                 params.FifoQueue,
 		MessageRetentionPeriod:    params.MessageRetentionPeriod,
@@ -125,43 +123,35 @@ func QueueTemplate(params QueueParams) (*goformation.Template, error) {
 		VisibilityTimeout:         params.VisibilityTimeout,
 	}
 
-	template.Outputs[OutputMainQueueURL] = goformation.Output{
-		Description: "Main queue URL",
-		Value:       goformation.Ref(ResourceMainQueue),
+	template.Outputs[OutputPrimaryQueueURL] = goformation.Output{
+		Description: "Primary queue URL",
+		Value:       goformation.Ref(ResourcePrimaryQueue),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputMainQueueURL),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputPrimaryQueueURL),
 		},
 	}
 
-	template.Outputs[OutputMainQueueARN] = goformation.Output{
-		Description: "Main queue ARN",
-		Value:       goformation.GetAtt(ResourceMainQueue, "Arn"),
+	template.Outputs[OutputPrimaryQueueARN] = goformation.Output{
+		Description: "Primary queue ARN",
+		Value:       goformation.GetAtt(ResourcePrimaryQueue, "Arn"),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputMainQueueARN),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputPrimaryQueueARN),
 		},
 	}
 
-	template.Outputs[OutputDeadletterQueueURL] = goformation.Output{
-		Description: "Deadletter queue URL",
-		Value:       goformation.Ref(ResourceDeadletterQueue),
+	template.Outputs[OutputSecondaryQueueURL] = goformation.Output{
+		Description: "Secondary queue URL",
+		Value:       goformation.Ref(ResourceSecondaryQueue),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputDeadletterQueueURL),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputSecondaryQueueURL),
 		},
 	}
 
-	template.Outputs[OutputDeadletterQueueARN] = goformation.Output{
-		Description: "Deadletter queue ARN",
-		Value:       goformation.GetAtt(ResourceDeadletterQueue, "Arn"),
+	template.Outputs[OutputSecondaryQueueARN] = goformation.Output{
+		Description: "Secondary queue ARN",
+		Value:       goformation.GetAtt(ResourceSecondaryQueue, "Arn"),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputDeadletterQueueARN),
-		},
-	}
-
-	template.Outputs[OutputRegion] = goformation.Output{
-		Description: "Region",
-		Value:       goformation.Ref("AWS::Region"),
-		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputRegion),
+			Name: fmt.Sprintf("%s-%s", params.QueueName, OutputSecondaryQueueARN),
 		},
 	}
 

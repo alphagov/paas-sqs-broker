@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/pivotal-cf/brokerapi/domain"
 )
@@ -135,35 +136,20 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		return nil, err // should this be async and checked later
 	}
 
-	params := UserParams{}
-
-	if bindData.Details.RawParameters != nil {
-		if err := json.Unmarshal(bindData.Details.RawParameters, &params); err != nil {
-			return nil, err
-		}
-	}
-	params.UserName = s.getStackName(bindData.BindingID)
-	params.UserPath = fmt.Sprintf("/%s/", s.ResourcePrefix)
-	params.PermissionsBoundary = s.PermissionsBoundary
-	params.Tags = map[string]string{
-		"Name":        bindData.BindingID,
-		"Service":     "sqs",
-		"ServiceID":   bindData.Details.ServiceID,
-		"Environment": s.Environment,
-	}
-
-	for _, item := range queueStack.Outputs {
-		if item.OutputKey == nil || item.OutputValue == nil {
-			continue
-		}
-		if *item.OutputKey == OutputMainQueueARN {
-			params.QueueARN = *item.OutputValue
-		} else if *item.OutputKey == OutputDeadletterQueueARN {
-			params.DLQueueARN = *item.OutputValue
-		}
-	}
-	if params.QueueARN == "" {
-		return nil, fmt.Errorf("found stack but missing ARN output key")
+	params := UserParams{
+		BindingID:           bindData.BindingID,
+		ResourcePrefix:      s.ResourcePrefix,
+		PermissionsBoundary: s.PermissionsBoundary,
+		Tags: map[string]string{
+			"Name":        bindData.BindingID,
+			"Service":     "sqs",
+			"ServiceID":   bindData.Details.ServiceID,
+			"Environment": s.Environment,
+		},
+		PrimaryQueueARN:   getStackOutput(queueStack, OutputPrimaryQueueARN),
+		PrimaryQueueURL:   getStackOutput(queueStack, OutputPrimaryQueueURL),
+		SecondaryQueueARN: getStackOutput(queueStack, OutputSecondaryQueueARN),
+		SecondaryQueueURL: getStackOutput(queueStack, OutputSecondaryQueueURL),
 	}
 
 	tmpl, err := UserTemplate(params)
@@ -180,7 +166,6 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		Capabilities: capabilities,
 		TemplateBody: aws.String(string(yaml)),
 		StackName:    aws.String(s.getStackName(bindData.BindingID)),
-		Parameters:   []*cloudformation.Parameter{},
 	})
 	if err != nil {
 		return nil, err
@@ -347,14 +332,6 @@ func (s *Provider) LastBindingOperation(ctx context.Context, lastBindingOperatio
 }
 
 func (s *Provider) GetBinding(ctx context.Context, getBindingData provideriface.GetBindData) (*domain.GetBindingSpec, error) {
-	var creds struct {
-		AccessKeyID     string
-		SecretAccessKey string
-		QueueURL        string
-		DLQueueURL      string
-		Region          string
-	}
-
 	userStackName := s.getStackName(getBindingData.BindingID)
 	userStack, err := s.getStack(ctx, userStackName)
 	if err == ErrStackNotFound {
@@ -364,37 +341,19 @@ func (s *Provider) GetBinding(ctx context.Context, getBindingData provideriface.
 		return nil, err
 	}
 
-	for _, item := range userStack.Outputs {
-		if item.OutputKey == nil || item.OutputValue == nil {
-			continue
-		}
-		if *item.OutputKey == OutputAccessKeyID {
-			creds.AccessKeyID = *item.OutputValue
-		} else if *item.OutputKey == OutputSecretAccessKey {
-			creds.SecretAccessKey = *item.OutputValue
-		}
-	}
-
-	queueStackName := s.getStackName(getBindingData.InstanceID)
-	queueStack, err := s.getStack(ctx, queueStackName)
-	if err == ErrStackNotFound {
-		return nil, ErrStackNotFound
-	} else if err != nil {
-		// failed to get stack status
+	credentialsARN := getStackOutput(userStack, OutputCredentialsARN)
+	res, err := s.Client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: aws.String(credentialsARN),
+	})
+	if err != nil {
 		return nil, err
+	} else if res.SecretString == nil {
+		return nil, fmt.Errorf("invalid response from secrets manager")
 	}
 
-	for _, item := range queueStack.Outputs {
-		if item.OutputKey == nil || item.OutputValue == nil {
-			continue
-		}
-		if *item.OutputKey == OutputMainQueueURL {
-			creds.QueueURL = *item.OutputValue
-		} else if *item.OutputKey == OutputDeadletterQueueURL {
-			creds.DLQueueURL = *item.OutputValue
-		} else if *item.OutputKey == OutputRegion {
-			creds.Region = *item.OutputValue
-		}
+	var creds interface{}
+	if err := json.Unmarshal([]byte(*res.SecretString), &creds); err != nil {
+		return nil, err
 	}
 
 	return &domain.GetBindingSpec{
@@ -441,4 +400,16 @@ func IsNotFoundError(err error) bool {
 		}
 	}
 	return false
+}
+
+func getStackOutput(stack *cloudformation.Stack, key string) string {
+	for _, item := range stack.Outputs {
+		if item.OutputKey == nil || item.OutputValue == nil {
+			continue
+		}
+		if *item.OutputKey == key {
+			return *item.OutputValue
+		}
+	}
+	return ""
 }
