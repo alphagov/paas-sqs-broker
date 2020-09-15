@@ -96,13 +96,7 @@ var _ = Describe("Provider", func() {
 		})
 
 		It("should have sensible default params", func() {
-			Expect(queue.ContentBasedDeduplication).To(BeFalse())
-			Expect(queue.DelaySeconds).To(Equal(0))
-			Expect(queue.MaximumMessageSize).To(Equal(0))
-			Expect(queue.MessageRetentionPeriod).To(Equal(0))
-			Expect(queue.ReceiveMessageWaitTimeSeconds).To(Equal(0))
-			Expect(queue.RedrivePolicy).To(Equal(""))
-			Expect(queue.VisibilityTimeout).To(Equal(0))
+			Expect(createStackInput.Parameters).To(HaveLen(0))
 		})
 
 		Context("Standard queues", func() {
@@ -130,7 +124,7 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when content_based_deduplication provision param set to false", func() {
+		XContext("when content_based_deduplication provision param set to false", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
@@ -145,7 +139,7 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		Context("when content_based_deduplication provision param set to true", func() {
+		XContext("when content_based_deduplication provision param set to true", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					Details: domain.ProvisionDetails{
@@ -173,7 +167,10 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("should set queue delay in seconds", func() {
-				Expect(queue.DelaySeconds).To(Equal(5))
+				Expect(createStackInput.Parameters).To(ContainElement(&cloudformation.Parameter{
+					ParameterKey:   aws.String(sqs.ParamDelaySeconds),
+					ParameterValue: aws.String("5"),
+				}))
 			})
 		})
 
@@ -189,7 +186,10 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("should set the queue max message size", func() {
-				Expect(queue.MaximumMessageSize).To(Equal(10))
+				Expect(createStackInput.Parameters).To(ContainElement(&cloudformation.Parameter{
+					ParameterKey:   aws.String(sqs.ParamMaximumMessageSize),
+					ParameterValue: aws.String("10"),
+				}))
 			})
 		})
 
@@ -205,7 +205,10 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("should set the queue retention period", func() {
-				Expect(queue.MessageRetentionPeriod).To(Equal(3))
+				Expect(createStackInput.Parameters).To(ContainElement(&cloudformation.Parameter{
+					ParameterKey:   aws.String(sqs.ParamMessageRetentionPeriod),
+					ParameterValue: aws.String("3"),
+				}))
 			})
 		})
 
@@ -221,7 +224,10 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("should set the wait time in seconds", func() {
-				Expect(queue.ReceiveMessageWaitTimeSeconds).To(Equal(20))
+				Expect(createStackInput.Parameters).To(ContainElement(&cloudformation.Parameter{
+					ParameterKey:   aws.String(sqs.ParamReceiveMessageWaitTimeSeconds),
+					ParameterValue: aws.String("20"),
+				}))
 			})
 		})
 
@@ -237,10 +243,10 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("should set redrive policy", func() {
-				Expect(queue.RedrivePolicy).To(And(
-					HaveKeyWithValue("maxReceiveCount", float64(30)),
-					HaveKey("deadLetterTargetArn"),
-				))
+				Expect(createStackInput.Parameters).To(ContainElement(&cloudformation.Parameter{
+					ParameterKey:   aws.String(sqs.ParamRedriveMaxReceiveCount),
+					ParameterValue: aws.String("30"),
+				}))
 			})
 		})
 
@@ -256,7 +262,10 @@ var _ = Describe("Provider", func() {
 			})
 
 			It("should set queue visibility timeout", func() {
-				Expect(queue.VisibilityTimeout).To(Equal(11))
+				Expect(createStackInput.Parameters).To(ContainElement(&cloudformation.Parameter{
+					ParameterKey:   aws.String(sqs.ParamVisibilityTimeout),
+					ParameterValue: aws.String("11"),
+				}))
 			})
 		})
 
@@ -284,78 +293,6 @@ var _ = Describe("Provider", func() {
 		It("Should construct queue name correctly", func() {
 			Expect(queue.QueueName).To(HavePrefix("testprefix-"))
 			Expect(queue.QueueName).To(ContainSubstring(provisionData.InstanceID))
-		})
-
-	})
-
-	Describe("Provision", func() {
-		It("creates a cloudformation stack", func() {
-			provisionData := provideriface.ProvisionData{
-				InstanceID: "a5da1b66-da42-4c83-b806-f287bc589ab3",
-				Plan: domain.ServicePlan{
-					Name: "standard",
-					ID:   "uuid-2",
-				},
-				Details: domain.ProvisionDetails{
-					OrganizationGUID: "27b72d3f-9401-4b45-a7e7-40b17819954f",
-					RawParameters: json.RawMessage(`{
-						"content_based_deduplication": true
-					}`),
-				},
-			}
-			spec, err := sqsProvider.Provision(context.Background(), provisionData)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(spec.DashboardURL).To(Equal(""))
-			Expect(spec.OperationData).To(Equal("provision"))
-			Expect(spec.IsAsync).To(BeTrue())
-
-			Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(Equal(1))
-
-			ctx, input, _ := fakeCfnClient.CreateStackWithContextArgsForCall(0)
-			Expect(ctx).ToNot(BeNil())
-			Expect(input.Capabilities).To(ConsistOf(
-				aws.String("CAPABILITY_NAMED_IAM"),
-			))
-			Expect(input.StackName).To(Equal(aws.String(fmt.Sprintf("testprefix-%s", provisionData.InstanceID))))
-
-			Expect(input.TemplateBody).ToNot(BeNil())
-			t, err := goformation.ParseYAML([]byte(*input.TemplateBody))
-			Expect(err).ToNot(HaveOccurred())
-
-			// we should see a queue resource
-			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok := t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
-			Expect(ok).To(BeTrue())
-
-			// fifo should be set to false because we asked for a standard queue
-			Expect(queue.FifoQueue).To(BeFalse())
-
-			// should have suitable tags set
-			Expect(queue.Tags).To(And(
-				ContainElement(goformationtags.Tag{
-					Key:   "Name",
-					Value: provisionData.InstanceID,
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "Service",
-					Value: "sqs",
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "ServiceID",
-					Value: provisionData.Details.ServiceID,
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "Environment",
-					Value: "test",
-				}),
-			))
-
-			// the queue resource should have had values from provisionData passed through
-			Expect(queue.QueueName).To(HavePrefix("testprefix-"))
-			Expect(queue.QueueName).To(ContainSubstring(provisionData.InstanceID))
-
-			// we set this in provdata
-			Expect(queue.ContentBasedDeduplication).To(BeTrue())
 		})
 	})
 
@@ -804,21 +741,28 @@ var _ = Describe("Provider", func() {
 		})
 	})
 
-	Describe("Update", func() {
-		It("updates a cloudformation stack", func() {
-			updateData := provideriface.UpdateData{
+	Context("Update", func() {
+		var (
+			updateData       provideriface.UpdateData
+			updateStackInput *cloudformation.UpdateStackInput
+		)
+
+		BeforeEach(func() {
+			updateData = provideriface.UpdateData{
 				InstanceID: "a5da1b66-da42-4c83-b806-f287bc589ab3",
 				Plan: domain.ServicePlan{
-					Name: "fifo",
+					Name: "standard",
 					ID:   "uuid-2",
 				},
 				Details: domain.UpdateDetails{
-					ServiceID: "27b72d3f-9401-4b45-a7e7-40b17819954f",
-					RawParameters: json.RawMessage(`{
-						"content_based_deduplication": true
-					}`),
+					ServiceID:     "27b72d3f-9401-4b45-a7e7-40b17819954f",
+					RawParameters: json.RawMessage(`{}`),
 				},
 			}
+			updateStackInput = nil
+		})
+
+		JustBeforeEach(func() {
 			spec, err := sqsProvider.Update(context.Background(), updateData)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(spec.DashboardURL).To(Equal(""))
@@ -827,52 +771,108 @@ var _ = Describe("Provider", func() {
 
 			Expect(fakeCfnClient.UpdateStackWithContextCallCount()).To(Equal(1))
 
-			ctx, input, _ := fakeCfnClient.UpdateStackWithContextArgsForCall(0)
+			var ctx context.Context
+			ctx, updateStackInput, _ = fakeCfnClient.UpdateStackWithContextArgsForCall(0)
 			Expect(ctx).ToNot(BeNil())
-			Expect(input.Capabilities).To(ConsistOf(
+		})
+
+		It("should have sensible default params", func() {
+			Expect(updateStackInput.Parameters).To(ContainElements(
+				&cloudformation.Parameter{
+					ParameterKey:     aws.String(sqs.ParamDelaySeconds),
+					UsePreviousValue: aws.Bool(true),
+				}, &cloudformation.Parameter{
+					ParameterKey:     aws.String(sqs.ParamMaximumMessageSize),
+					UsePreviousValue: aws.Bool(true),
+				}, &cloudformation.Parameter{
+					ParameterKey:     aws.String(sqs.ParamMessageRetentionPeriod),
+					UsePreviousValue: aws.Bool(true),
+				}, &cloudformation.Parameter{
+					ParameterKey:     aws.String(sqs.ParamReceiveMessageWaitTimeSeconds),
+					UsePreviousValue: aws.Bool(true),
+				}, &cloudformation.Parameter{
+					ParameterKey:     aws.String(sqs.ParamRedriveMaxReceiveCount),
+					UsePreviousValue: aws.Bool(true),
+				}, &cloudformation.Parameter{
+					ParameterKey:     aws.String(sqs.ParamVisibilityTimeout),
+					UsePreviousValue: aws.Bool(true),
+				},
+			))
+		})
+
+		ItSetsParam := func(name, expectedValue string) {
+			It(fmt.Sprint("sets the ", name, " template parameter"), func() {
+				Expect(updateStackInput.Parameters).To(ContainElement(
+					&cloudformation.Parameter{
+						ParameterKey:   aws.String(name),
+						ParameterValue: aws.String(expectedValue),
+					}))
+				Expect(updateStackInput.Parameters).ToNot(ContainElement(
+					&cloudformation.Parameter{
+						ParameterKey:     aws.String(name),
+						UsePreviousValue: aws.Bool(true),
+					}))
+			})
+
+		}
+
+		Context("updating delay_seconds", func() {
+			BeforeEach(func() {
+				updateData.Details.RawParameters = json.RawMessage(`{"delay_seconds": 92}`)
+			})
+			ItSetsParam(sqs.ParamDelaySeconds, "92")
+		})
+
+		Context("updating maximum_message_size", func() {
+			BeforeEach(func() {
+				updateData.Details.RawParameters = json.RawMessage(`{"maximum_message_size": 8194}`)
+			})
+			ItSetsParam(sqs.ParamMaximumMessageSize, "8194")
+		})
+
+		Context("updating message_retention_period", func() {
+			BeforeEach(func() {
+				updateData.Details.RawParameters = json.RawMessage(`{"message_retention_period": 1089}`)
+			})
+			ItSetsParam(sqs.ParamMessageRetentionPeriod, "1089")
+		})
+
+		Context("updating receive_message_wait_time_seconds", func() {
+			BeforeEach(func() {
+				updateData.Details.RawParameters = json.RawMessage(`{"receive_message_wait_time_seconds": 7}`)
+			})
+			ItSetsParam(sqs.ParamReceiveMessageWaitTimeSeconds, "7")
+		})
+
+		Context("updating redrive_max_receive_count", func() {
+			BeforeEach(func() {
+				updateData.Details.RawParameters = json.RawMessage(`{"redrive_max_receive_count": 4}`)
+			})
+			ItSetsParam(sqs.ParamRedriveMaxReceiveCount, "4")
+		})
+
+		Context("updating visibility_timeout", func() {
+			BeforeEach(func() {
+				updateData.Details.RawParameters = json.RawMessage(`{"visibility_timeout": 28}`)
+			})
+			ItSetsParam(sqs.ParamVisibilityTimeout, "28")
+		})
+
+		It("does not change the template itself", func() {
+			Expect(*updateStackInput.UsePreviousTemplate).To(BeTrue())
+			Expect(updateStackInput.TemplateBody).To(BeNil())
+		})
+
+		It("should have CAPABILITY_NAMED_IAM", func() {
+			Expect(updateStackInput.Capabilities).To(ConsistOf(
 				aws.String("CAPABILITY_NAMED_IAM"),
 			))
-			Expect(input.StackName).To(Equal(aws.String(fmt.Sprintf("testprefix-%s", updateData.InstanceID))))
-
-			Expect(input.TemplateBody).ToNot(BeNil())
-			t, err := goformation.ParseYAML([]byte(*input.TemplateBody))
-			Expect(err).ToNot(HaveOccurred())
-
-			// we should see a queue resource
-			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
-			queue, ok := t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
-			Expect(ok).To(BeTrue())
-
-			// fifo should be set to true because we asked for a fifo queue
-			Expect(queue.FifoQueue).To(BeTrue())
-
-			// should have suitable tags set
-			Expect(queue.Tags).To(And(
-				ContainElement(goformationtags.Tag{
-					Key:   "Name",
-					Value: updateData.InstanceID,
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "Service",
-					Value: "sqs",
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "ServiceID",
-					Value: updateData.Details.ServiceID,
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "Environment",
-					Value: "test",
-				}),
-			))
-
-			// the queue resource should have had values from provisionData passed through
-			Expect(queue.QueueName).To(HavePrefix("testprefix-"))
-			Expect(queue.QueueName).To(ContainSubstring(updateData.InstanceID))
-
-			// we set this in provdata
-			Expect(queue.ContentBasedDeduplication).To(BeTrue())
 		})
+
+		It("should use the correct stack prefix", func() {
+			Expect(updateStackInput.StackName).To(Equal(aws.String(fmt.Sprintf("testprefix-%s", updateData.InstanceID))))
+		})
+
 	})
 
 })

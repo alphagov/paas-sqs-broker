@@ -47,24 +47,16 @@ type Provider struct {
 }
 
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
-	params := QueueParams{}
-	if provisionData.Details.RawParameters != nil {
-		if err := json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
-			return nil, err
-		}
-	}
-	params.Tags = map[string]string{
+	tags := map[string]string{
 		"Name":        provisionData.InstanceID,
 		"Service":     "sqs",
 		"ServiceID":   provisionData.Details.ServiceID,
 		"Environment": s.Environment,
 	}
-	params.QueueName = s.getStackName(provisionData.InstanceID)
-	if provisionData.Plan.Name == "fifo" {
-		params.FifoQueue = true
-	}
+	queueName := s.getStackName(provisionData.InstanceID)
+	isFIFO := provisionData.Plan.Name == "fifo"
 
-	tmpl, err := QueueTemplate(params)
+	tmpl, err := QueueTemplate(queueName, isFIFO, tags)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +66,38 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 		return nil, err
 	}
 
+	params := TemplateParams{}
+	if provisionData.Details.RawParameters != nil {
+		if err := json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
+			return nil, err
+		}
+	}
+
+	stackParams := []*cloudformation.Parameter{}
+	if params.DelaySeconds != nil {
+		stackParams = append(stackParams, mkParameter(ParamDelaySeconds, *params.DelaySeconds))
+	}
+	if params.MaximumMessageSize != nil {
+		stackParams = append(stackParams, mkParameter(ParamMaximumMessageSize, *params.MaximumMessageSize))
+	}
+	if params.MessageRetentionPeriod != nil {
+		stackParams = append(stackParams, mkParameter(ParamMessageRetentionPeriod, *params.MessageRetentionPeriod))
+	}
+	if params.ReceiveMessageWaitTimeSeconds != nil {
+		stackParams = append(stackParams, mkParameter(ParamReceiveMessageWaitTimeSeconds, *params.ReceiveMessageWaitTimeSeconds))
+	}
+	if params.RedriveMaxReceiveCount != nil {
+		stackParams = append(stackParams, mkParameter(ParamRedriveMaxReceiveCount, *params.RedriveMaxReceiveCount))
+	}
+	if params.VisibilityTimeout != nil {
+		stackParams = append(stackParams, mkParameter(ParamVisibilityTimeout, *params.VisibilityTimeout))
+	}
+
 	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
 		TemplateBody: aws.String(string(yaml)),
 		StackName:    aws.String(s.getStackName(provisionData.InstanceID)),
-		Parameters:   []*cloudformation.Parameter{},
+		Parameters:   stackParams,
 	})
 	if err != nil {
 		return nil, err
@@ -88,6 +107,13 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 		OperationData: ProvisionOperation,
 		IsAsync:       true,
 	}, nil
+}
+
+func mkParameter(name string, value int) *cloudformation.Parameter {
+	return &cloudformation.Parameter{
+		ParameterKey:   aws.String(name),
+		ParameterValue: aws.String(fmt.Sprint(value)),
+	}
 }
 
 func (s *Provider) Deprovision(ctx context.Context, deprovisionData provideriface.DeprovisionData) (*domain.DeprovisionServiceSpec, error) {
@@ -212,38 +238,25 @@ func (s *Provider) Unbind(ctx context.Context, unbindData provideriface.UnbindDa
 }
 
 func (s *Provider) Update(ctx context.Context, updateData provideriface.UpdateData) (*domain.UpdateServiceSpec, error) {
-	params := QueueParams{}
+	params := TemplateParams{}
 	if updateData.Details.RawParameters != nil {
 		if err := json.Unmarshal(updateData.Details.RawParameters, &params); err != nil {
 			return nil, err
 		}
 	}
-	params.Tags = map[string]string{
-		"Name":        updateData.InstanceID,
-		"Service":     "sqs",
-		"ServiceID":   updateData.Details.ServiceID,
-		"Environment": s.Environment,
-	}
-	params.QueueName = s.getStackName(updateData.InstanceID)
-	if updateData.Plan.Name == "fifo" {
-		params.FifoQueue = true
-	}
 
-	tmpl, err := QueueTemplate(params)
-	if err != nil {
-		return nil, err
-	}
-
-	yaml, err := tmpl.YAML()
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = s.Client.UpdateStackWithContext(ctx, &cloudformation.UpdateStackInput{
+	_, err := s.Client.UpdateStackWithContext(ctx, &cloudformation.UpdateStackInput{
 		Capabilities: capabilities,
-		TemplateBody: aws.String(string(yaml)),
 		StackName:    aws.String(s.getStackName(updateData.InstanceID)),
-		Parameters:   []*cloudformation.Parameter{},
+		Parameters: []*cloudformation.Parameter{
+			mkOptionalParameter(ParamDelaySeconds, params.DelaySeconds),
+			mkOptionalParameter(ParamMaximumMessageSize, params.MaximumMessageSize),
+			mkOptionalParameter(ParamMessageRetentionPeriod, params.MessageRetentionPeriod),
+			mkOptionalParameter(ParamReceiveMessageWaitTimeSeconds, params.ReceiveMessageWaitTimeSeconds),
+			mkOptionalParameter(ParamRedriveMaxReceiveCount, params.RedriveMaxReceiveCount),
+			mkOptionalParameter(ParamVisibilityTimeout, params.VisibilityTimeout),
+		},
+		UsePreviousTemplate: aws.Bool(true),
 	})
 	if err != nil {
 		return nil, err
@@ -253,6 +266,20 @@ func (s *Provider) Update(ctx context.Context, updateData provideriface.UpdateDa
 		OperationData: UpdateOperation,
 		IsAsync:       true,
 	}, nil
+}
+
+func mkOptionalParameter(name string, value *int) *cloudformation.Parameter {
+	if value == nil {
+		return &cloudformation.Parameter{
+			ParameterKey:     aws.String(name),
+			UsePreviousValue: aws.Bool(true),
+		}
+	} else {
+		return &cloudformation.Parameter{
+			ParameterKey:   aws.String(name),
+			ParameterValue: aws.String(fmt.Sprint(*value)),
+		}
+	}
 }
 
 func (s *Provider) LastOperation(ctx context.Context, lastOperationData provideriface.LastOperationData) (*domain.LastOperation, error) {
