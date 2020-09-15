@@ -107,7 +107,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 				ServiceID: provisionValues.ServiceID,
 				PlanID:    provisionValues.PlanID,
 				Parameters: &brokertesting.ConfigurationValues{
-					"message_retention_period": 120,
+					"delay_seconds": 30,
 				},
 				PreviousValues: &provisionValues,
 			}, ASYNC_ALLOWED)
@@ -191,6 +191,21 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 			Expect(binding.Credentials.AWSRegion).ToNot(BeEmpty())
 			Expect(binding.Credentials.PrimaryQueueURL).ToNot(BeEmpty())
 			Expect(binding.Credentials.SecondaryQueueURL).ToNot(BeEmpty())
+		})
+
+		By("checking we see expected configuration", func() {
+			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
+				QueueUrl: aws.String(binding.Credentials.PrimaryQueueURL),
+				AttributeNames: []*string{
+					aws.String(awssqs.QueueAttributeNameDelaySeconds),
+					aws.String(awssqs.QueueAttributeNameMessageRetentionPeriod),
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameDelaySeconds, aws.String("30")))
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
 		})
 
 		By("using binding credentials to access the service", func() {

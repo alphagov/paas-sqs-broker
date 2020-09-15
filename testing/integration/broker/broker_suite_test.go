@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	awssqs "github.com/aws/aws-sdk-go/service/sqs"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-cf/brokerapi"
@@ -20,7 +21,8 @@ import (
 )
 
 var (
-	broker brokertesting.BrokerTester
+	broker         brokertesting.BrokerTester
+	sqsAdminClient *awssqs.SQS
 )
 
 var _ = BeforeSuite(func() {
@@ -53,6 +55,8 @@ var _ = BeforeSuite(func() {
 	logger.RegisterSink(lager.NewWriterSink(GinkgoWriter, config.API.LagerLogLevel))
 
 	sess := session.Must(session.NewSession(&aws.Config{Region: aws.String(sqsClientConfig.AWSRegion)}))
+
+	sqsAdminClient = awssqs.New(sess)
 
 	sqsProvider := &sqs.Provider{
 		Client: struct {
