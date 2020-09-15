@@ -179,7 +179,7 @@ var _ = Describe("UserTemplate", func() {
 			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
 			Expect(policyDoc.Statement).To(HaveLen(1))
 			Expect(policyDoc.Statement[0].Effect).To(Equal("Allow"))
-			Expect(policyDoc.Statement[0].Action).To(ContainElements(
+			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
 				"sqs:ChangeMessageVisibility",
 				"sqs:DeleteMessage",
 				"sqs:GetQueueAttributes",
