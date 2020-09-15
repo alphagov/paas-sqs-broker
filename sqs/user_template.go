@@ -3,6 +3,9 @@ package sqs
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 
 	goformation "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
@@ -21,6 +24,15 @@ const (
 	OutputCredentialsARN = "CredentialsARN"
 )
 
+type AccessPolicy = string
+
+const (
+    AccessPolicyFull AccessPolicy = "full"
+    AccessPolicyProducer AccessPolicy = "producer"
+    AccessPolicyConsumer AccessPolicy = "consumer"
+)
+
+
 type UserParams struct {
 	BindingID           string            `json:"-"`
 	ResourcePrefix      string            `json:"-"`
@@ -31,6 +43,7 @@ type UserParams struct {
 	SecondaryQueueARN   string            `json:"-"`
 	Tags                map[string]string `json:"-"`
 	PermissionsBoundary string            `json:"-"`
+	AccessPolicy        AccessPolicy      `json:"-"`
 }
 
 type Credentials struct {
@@ -52,22 +65,21 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 		})
 	}
 
+	if params.AccessPolicy == "" {
+		params.AccessPolicy = "full"
+	}
+
+	cannedPolicy, err := getCannedAccessPolicy(params.AccessPolicy)
+	if err != nil {
+		return nil, err
+	}
+
 	policy := PolicyDocument{
 		Version: "2012-10-17",
 		Statement: []PolicyStatement{
 			{
 				Effect: "Allow",
-				Action: []string{
-					"sqs:ChangeMessageVisibility",
-					"sqs:DeleteMessage",
-					"sqs:GetQueueAttributes",
-					"sqs:GetQueueUrl",
-					"sqs:ListDeadLetterSourceQueues",
-					"sqs:ListQueueTags",
-					"sqs:PurgeQueue",
-					"sqs:ReceiveMessage",
-					"sqs:SendMessage",
-				},
+				Action: cannedPolicy,
 				Resource: []string{
 					params.PrimaryQueueARN,
 					params.SecondaryQueueARN,
@@ -177,5 +189,47 @@ func NewRolePolicyDocument(resources, actions []string) PolicyDocument {
 				Resource: resources,
 			},
 		},
+	}
+}
+
+func getCannedAccessPolicy(policyName string) ([]string, error) {
+	switch policyName {
+		case AccessPolicyFull:
+			return []string{
+				"sqs:ChangeMessageVisibility",
+				"sqs:DeleteMessage",
+				"sqs:GetQueueAttributes",
+				"sqs:GetQueueUrl",
+				"sqs:ListDeadLetterSourceQueues",
+				"sqs:ListQueueTags",
+				"sqs:PurgeQueue",
+				"sqs:ReceiveMessage",
+				"sqs:SendMessage",
+			}, nil
+		case AccessPolicyProducer:
+			return []string{
+				"sqs:GetQueueAttributes",
+				"sqs:GetQueueUrl",
+				"sqs:ListDeadLetterSourceQueues",
+				"sqs:ListQueueTags",
+				"sqs:SendMessage",
+			}, nil
+		case AccessPolicyConsumer:
+			return []string{
+				"sqs:DeleteMessage",
+				"sqs:GetQueueAttributes",
+				"sqs:GetQueueUrl",
+				"sqs:ListDeadLetterSourceQueues",
+				"sqs:ListQueueTags",
+				"sqs:PurgeQueue",
+				"sqs:ReceiveMessage",
+			}, nil
+
+		default:
+			return nil, apiresponses.NewFailureResponse(
+				fmt.Errorf("unknown access policy %#v", policyName),
+				http.StatusBadRequest,
+				"unknown-access-policy",
+			)
 	}
 }

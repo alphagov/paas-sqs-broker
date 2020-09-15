@@ -104,6 +104,71 @@ var _ = Describe("UserTemplate", func() {
 		})
 	})
 
+	Context("when the access policy is 'producer'", func() {
+		BeforeEach(func() {
+			params.AccessPolicy = "producer"
+		})
+		It("should use the 'producer' canned access policy", func() {
+			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
+			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
+			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
+				"sqs:GetQueueAttributes",
+				"sqs:GetQueueUrl",
+				"sqs:ListDeadLetterSourceQueues",
+				"sqs:ListQueueTags",
+				"sqs:SendMessage",
+			))
+		})
+	})
+
+	Context("when the access policy is 'consumer'", func() {
+		BeforeEach(func() {
+			params.AccessPolicy = "consumer"
+		})
+		It("should use the 'consumer' canned access policy", func() {
+			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
+			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
+			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
+				"sqs:DeleteMessage",
+				"sqs:GetQueueAttributes",
+				"sqs:GetQueueUrl",
+				"sqs:ListDeadLetterSourceQueues",
+				"sqs:ListQueueTags",
+				"sqs:PurgeQueue",
+				"sqs:ReceiveMessage",
+			))
+		})
+	})
+
+	Context("when the access policy is unspecified", func() {
+		BeforeEach(func() {
+			params.AccessPolicy = ""
+		})
+		It("should use the 'full' canned access policy", func() {
+			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
+			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
+			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
+				"sqs:ChangeMessageVisibility",
+				"sqs:DeleteMessage",
+				"sqs:GetQueueAttributes",
+				"sqs:GetQueueUrl",
+				"sqs:ListDeadLetterSourceQueues",
+				"sqs:ListQueueTags",
+				"sqs:PurgeQueue",
+				"sqs:ReceiveMessage",
+				"sqs:SendMessage",
+			))
+		})
+	})
+
+	It("should return an error for unknown access policies", func() {
+		t, err := sqs.UserTemplate(sqs.UserParams{
+			AccessPolicy: "bananas",
+		})
+		Expect(t).To(BeNil())
+		Expect(err).To(MatchError("unknown access policy \"bananas\""))
+	})
+
 	Context("when queue ARNs are set", func() {
 		BeforeEach(func() {
 			params.PrimaryQueueARN = "abc"
