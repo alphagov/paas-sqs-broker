@@ -43,7 +43,7 @@ type UserParams struct {
 	SecondaryQueueARN   string            `json:"-"`
 	Tags                map[string]string `json:"-"`
 	PermissionsBoundary string            `json:"-"`
-	AccessPolicy        AccessPolicy      `json:"-"`
+	AccessPolicy        AccessPolicy      `json:"access_policy"`
 }
 
 type Credentials struct {
