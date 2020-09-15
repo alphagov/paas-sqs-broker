@@ -1,2 +1,4 @@
+.gopath
 .idea
 paas-sqs-broker
+local.nix
