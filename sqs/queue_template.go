@@ -1,6 +1,8 @@
 package sqs
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 
 	goformation "github.com/awslabs/goformation/v4/cloudformation"
@@ -14,6 +16,10 @@ const (
 	ParamReceiveMessageWaitTimeSeconds = "ReceiveMessageWaitTimeSeconds"
 	ParamRedriveMaxReceiveCount        = "RedriveMaxReceiveCount"
 	ParamVisibilityTimeout             = "VisibilityTimeout"
+)
+
+const (
+	ConditionShouldNotUseDLQ = "ShouldNotUseDLQ"
 )
 
 const (
@@ -92,16 +98,6 @@ func QueueTemplate(queueName string, isFIFO bool, tags map[string]string) (*gofo
 		})
 	}
 
-	var redrivePolicy interface{}
-	// if params.RedriveMaxReceiveCount > 0 {
-	// 	redrivePolicy = map[string]interface{}{
-	// 		"deadLetterTargetArn": goformation.GetAtt(ResourceSecondaryQueue, "Arn"),
-	// 		"maxReceiveCount":     params.RedriveMaxReceiveCount,
-	// 	}
-	// } else {
-	redrivePolicy = ""
-	// }
-
 	template.Parameters = map[string]goformation.Parameter{
 		ParamDelaySeconds: {
 			Description: `The time in seconds for which the delivery of all messages in the queue is delayed. You can specify an integer value of 0 to 900 (15 minutes).`,
@@ -146,6 +142,14 @@ func QueueTemplate(queueName string, isFIFO bool, tags map[string]string) (*gofo
 		},
 	}
 
+	// This is broken.  It uses the wrong function name Fn::Equal
+	// (should be Fn::Equals).  If I use the right function name, the
+	// whole thing gets replaced with `false` when the template is
+	// rendered.  wtf
+	template.Conditions = map[string]interface{}{ConditionShouldNotUseDLQ: json.RawMessage(
+		fmt.Sprintf(`{"Fn::Equal":["%s",0]}`,
+			goformation.Ref(ParamRedriveMaxReceiveCount)))}
+
 	template.Resources[ResourcePrimaryQueue] = &Queue{
 		QueueName: fmt.Sprintf("%s-pri", queueName),
 		Tags: append(templateTags, goformationtags.Tag{
@@ -158,8 +162,24 @@ func QueueTemplate(queueName string, isFIFO bool, tags map[string]string) (*gofo
 		MaximumMessageSize:            goformation.Ref(ParamMaximumMessageSize),
 		MessageRetentionPeriod:        goformation.Ref(ParamMessageRetentionPeriod),
 		ReceiveMessageWaitTimeSeconds: goformation.Ref(ParamReceiveMessageWaitTimeSeconds),
-		RedrivePolicy:                 redrivePolicy,
-		VisibilityTimeout:             goformation.Ref(ParamVisibilityTimeout),
+		RedrivePolicy: goformation.If(
+			ConditionShouldNotUseDLQ,
+			"AWS::NoValue",
+			// goformation.Sub doesn't support the two-parameter
+			// version so we have to reimplement it inline here,
+			// including the weird base64 encoding thing
+			base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
+              {"Fn::Sub":
+                [%q,
+                {
+                  "DeadLetterTargetArn": %q,
+                  "MaxReceiveCount": %q
+                }]}`,
+				`{"deadLetterTargetArn":"${DeadLetterTargetArn}", "maxReceiveCount": "${MaxReceiveCount}"}`,
+				goformation.GetAtt(ResourceSecondaryQueue, "Arn"),
+				goformation.Ref(ParamRedriveMaxReceiveCount),
+			)))),
+		VisibilityTimeout: goformation.Ref(ParamVisibilityTimeout),
 	}
 
 	template.Resources[ResourceSecondaryQueue] = &Queue{

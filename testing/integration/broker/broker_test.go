@@ -102,31 +102,6 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 			Expect(res.Code).To(Equal(http.StatusAccepted))
 		})
 
-		By("updating", func() {
-			res := broker.Update(instanceID, brokertesting.RequestBody{
-				ServiceID: provisionValues.ServiceID,
-				PlanID:    provisionValues.PlanID,
-				Parameters: &brokertesting.ConfigurationValues{
-					"delay_seconds": 30,
-				},
-				PreviousValues: &provisionValues,
-			}, ASYNC_ALLOWED)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("waiting for update process to complete", func() {
-			updateState := lastServiceOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				sqs.UpdateOperation,
-			)
-
-			Eventually(updateState).Should(BeSuccessState())
-		})
-
 		By("binding", func() {
 			res := broker.Bind(instanceID, bindingID, brokertesting.RequestBody{
 				ServiceID:        provisionValues.ServiceID,
@@ -195,17 +170,40 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 
 		By("checking we see expected configuration", func() {
 			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
-				QueueUrl: aws.String(binding.Credentials.PrimaryQueueURL),
-				AttributeNames: []*string{
-					aws.String(awssqs.QueueAttributeNameDelaySeconds),
-					aws.String(awssqs.QueueAttributeNameMessageRetentionPeriod),
-				},
+				QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
+				AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
 			})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(output.Attributes).To(
-				HaveKeyWithValue(awssqs.QueueAttributeNameDelaySeconds, aws.String("30")))
+			// We haven't set redrive_max_receive_count so there shouldn't be a redrive policy
+			Expect(output.Attributes).ToNot(HaveKey(awssqs.QueueAttributeNameRedrivePolicy))
 			Expect(output.Attributes).To(
 				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
+		})
+
+		By("updating", func() {
+			res := broker.Update(instanceID, brokertesting.RequestBody{
+				ServiceID: provisionValues.ServiceID,
+				PlanID:    provisionValues.PlanID,
+				Parameters: &brokertesting.ConfigurationValues{
+					"delay_seconds":             30,
+					"redrive_max_receive_count": 3,
+				},
+				PreviousValues: &provisionValues,
+			}, ASYNC_ALLOWED)
+
+			Expect(res.Code).To(Equal(http.StatusAccepted))
+		})
+
+		By("waiting for update process to complete", func() {
+			updateState := lastServiceOperationChan(
+				broker,
+				instanceID,
+				provisionValues.ServiceID,
+				provisionValues.PlanID,
+				sqs.UpdateOperation,
+			)
+
+			Eventually(updateState).Should(BeSuccessState())
 		})
 
 		By("using binding credentials to access the service", func() {
@@ -230,6 +228,33 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 				MaxNumberOfMessages: aws.Int64(10),
 			})
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		By("checking we see expected new configuration", func() {
+			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
+				QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
+				AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameDelaySeconds, aws.String("30")))
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
+
+			var redrivePolicy struct {
+				deadLetterTargetArn string
+				maxReceiveCount     int
+			}
+			Expect(output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]).ToNot(BeNil())
+			Expect(
+				json.Unmarshal(
+					[]byte(*output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]),
+					&redrivePolicy,
+				),
+			).To(Succeed())
+
+			Expect(redrivePolicy.deadLetterTargetArn).To(ContainSubstring("-sec"))
+			Expect(redrivePolicy.maxReceiveCount).To(Equal(3))
 		})
 	})
 
