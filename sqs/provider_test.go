@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-cf/brokerapi"
 	"github.com/pivotal-cf/brokerapi/domain"
 
 	"context"
@@ -685,7 +686,7 @@ var _ = Describe("Provider", func() {
 		})
 	})
 
-	Context("Bind", func() {
+	Describe("Bind", func() {
 		var (
 			bindData         provideriface.BindData
 			createStackInput *cloudformation.CreateStackInput
@@ -722,84 +723,167 @@ var _ = Describe("Provider", func() {
 			user = nil
 		})
 
-		JustBeforeEach(func() {
-			spec, err := sqsProvider.Bind(context.Background(), bindData)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(spec.OperationData).To(Equal(sqs.BindOperation))
-			Expect(spec.IsAsync).To(BeTrue())
+		Context("Success", func() {
+			JustBeforeEach(func() {
+				spec, err := sqsProvider.Bind(context.Background(), bindData)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(spec.OperationData).To(Equal(sqs.BindOperation))
+				Expect(spec.IsAsync).To(BeTrue())
 
-			Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(Equal(1))
+				Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(Equal(1))
 
-			var ctx context.Context
-			ctx, createStackInput, _ = fakeCfnClient.CreateStackWithContextArgsForCall(0)
-			Expect(ctx).ToNot(BeNil())
+				var ctx context.Context
+				ctx, createStackInput, _ = fakeCfnClient.CreateStackWithContextArgsForCall(0)
+				Expect(ctx).ToNot(BeNil())
 
-			Expect(createStackInput.TemplateBody).ToNot(BeNil())
-			t, err := goformation.ParseYAML([]byte(*createStackInput.TemplateBody))
-			Expect(err).ToNot(HaveOccurred())
+				Expect(createStackInput.TemplateBody).ToNot(BeNil())
+				t, err := goformation.ParseYAML([]byte(*createStackInput.TemplateBody))
+				Expect(err).ToNot(HaveOccurred())
 
-			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
-			var ok bool
-			user, ok = t.Resources[sqs.ResourceUser].(*goformationiam.User)
-			Expect(ok).To(BeTrue())
-			Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
-			policy, ok = t.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
-			Expect(ok).To(BeTrue())
-		})
-
-		It("should have CAPABILITY_NAMED_IAM", func() {
-			Expect(createStackInput.Capabilities).To(ConsistOf(
-				aws.String("CAPABILITY_NAMED_IAM"),
-			))
-		})
-
-		It("should use the correct stack prefix", func() {
-			Expect(createStackInput.StackName).To(Equal(aws.String(fmt.Sprintf("testprefix-%s", bindData.BindingID))))
-		})
-
-		It("Should set appropriate tags", func() {
-			Expect(user.Tags).To(And(
-				ContainElement(goformationtags.Tag{
-					Key:   "Name",
-					Value: bindData.BindingID,
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "Service",
-					Value: "sqs",
-				}),
-				ContainElement(goformationtags.Tag{
-					Key:   "Environment",
-					Value: "test",
-				}),
-			))
-		})
-
-		It("should use create user name with binding id", func() {
-			Expect(user.UserName).To(HaveSuffix(bindData.BindingID))
-		})
-
-		It("should use create user with a path based on ResourcePrefix", func() {
-			Expect(user.Path).To(Equal("/testprefix/"))
-		})
-
-		It("should not set permission boundary by default", func() {
-			Expect(user.PermissionsBoundary).To(BeEmpty())
-		})
-
-		It("should extract arns from queue stack outputs", func() {
-			Expect(policy.PolicyDocument).To(
-				HaveKeyWithValue("Statement", ContainElement(
-					HaveKeyWithValue("Resource", ConsistOf(arn1, arn2)),
-				)),
-			)
-		})
-
-		Context("when permission boundary is provided", func() {
-			BeforeEach(func() {
-				sqsProvider.PermissionsBoundary = "arn:fake:permission:boundary"
+				Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
+				var ok bool
+				user, ok = t.Resources[sqs.ResourceUser].(*goformationiam.User)
+				Expect(ok).To(BeTrue())
+				Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.Policy{})))
+				policy, ok = t.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
+				Expect(ok).To(BeTrue())
 			})
-			It("should create user with a permission boundary if provided", func() {
-				Expect(user.PermissionsBoundary).To(Equal("arn:fake:permission:boundary"))
+
+			It("should have CAPABILITY_NAMED_IAM", func() {
+				Expect(createStackInput.Capabilities).To(ConsistOf(
+					aws.String("CAPABILITY_NAMED_IAM"),
+				))
+			})
+
+			It("should use the correct stack prefix", func() {
+				Expect(createStackInput.StackName).To(Equal(aws.String(fmt.Sprintf("testprefix-%s", bindData.BindingID))))
+			})
+
+			It("Should set appropriate tags", func() {
+				Expect(user.Tags).To(And(
+					ContainElement(goformationtags.Tag{
+						Key:   "Name",
+						Value: bindData.BindingID,
+					}),
+					ContainElement(goformationtags.Tag{
+						Key:   "Service",
+						Value: "sqs",
+					}),
+					ContainElement(goformationtags.Tag{
+						Key:   "Environment",
+						Value: "test",
+					}),
+				))
+			})
+
+			It("should use create user name with binding id", func() {
+				Expect(user.UserName).To(HaveSuffix(bindData.BindingID))
+			})
+
+			It("should use create user with a path based on ResourcePrefix", func() {
+				Expect(user.Path).To(Equal("/testprefix/"))
+			})
+
+			It("should not set permission boundary by default", func() {
+				Expect(user.PermissionsBoundary).To(BeEmpty())
+			})
+
+			It("should extract arns from queue stack outputs", func() {
+				Expect(policy.PolicyDocument).To(
+					HaveKeyWithValue("Statement", ContainElement(
+						HaveKeyWithValue("Resource", ConsistOf(arn1, arn2)),
+					)),
+				)
+			})
+
+			Context("when permission boundary is provided", func() {
+				BeforeEach(func() {
+					sqsProvider.PermissionsBoundary = "arn:fake:permission:boundary"
+				})
+				It("should create user with a permission boundary if provided", func() {
+					Expect(user.PermissionsBoundary).To(Equal("arn:fake:permission:boundary"))
+				})
+			})
+
+			Context("when an alternative access_policy is provided", func() {
+				BeforeEach(func() {
+					bindData.Details.RawParameters = json.RawMessage(`{"access_policy": "producer"}`)
+				})
+				It("should create user with that access policy", func() {
+					Expect(policy.PolicyDocument).To(
+						HaveKeyWithValue("Statement", ContainElement(
+							HaveKeyWithValue("Action", ConsistOf(
+								"sqs:GetQueueAttributes",
+								"sqs:GetQueueUrl",
+								"sqs:ListDeadLetterSourceQueues",
+								"sqs:ListQueueTags",
+								"sqs:SendMessage",
+							)),
+						)),
+					)
+				})
+			})
+		})
+
+		Context("Failures", func() {
+			var errResponse error
+
+			JustBeforeEach(func() {
+				var spec *domain.Binding
+				spec, errResponse = sqsProvider.Bind(context.Background(), bindData)
+				Expect(errResponse).To(HaveOccurred())
+				Expect(spec).To(BeNil())
+			})
+
+			Context("when an unexpected json key is provided", func() {
+				BeforeEach(func() {
+					bindData.Details.RawParameters = json.RawMessage(`{"pineapple": 123, "access_policy": "full"}`)
+				})
+				It("should return an appropriate error", func() {
+					Expect(errResponse).To(MatchError("json: unknown field \"pineapple\""))
+
+					Expect(errResponse).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
+					castErrResponse, ok := errResponse.(*brokerapi.FailureResponse)
+					Expect(ok).To(BeTrue())
+					Expect(castErrResponse.ValidatedStatusCode(nil)).To(Equal(400))
+				})
+				It("should not have created a stack", func() {
+					Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(BeZero())
+				})
+			})
+
+			Context("when a non-string access_policy is provided", func() {
+				BeforeEach(func() {
+					bindData.Details.RawParameters = json.RawMessage(`{"access_policy":[123]}`)
+				})
+				It("should return an appropriate error", func() {
+					Expect(errResponse).To(MatchError("json: cannot unmarshal array into Go struct field UserParams.access_policy of type string"))
+
+					Expect(errResponse).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
+					castErrResponse, ok := errResponse.(*brokerapi.FailureResponse)
+					Expect(ok).To(BeTrue())
+					Expect(castErrResponse.ValidatedStatusCode(nil)).To(Equal(400))
+				})
+				It("should not have created a stack", func() {
+					Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(BeZero())
+				})
+			})
+
+			Context("when an unknown access_policy is provided", func() {
+				BeforeEach(func() {
+					bindData.Details.RawParameters = json.RawMessage(`{"access_policy": "whatever"}`)
+				})
+				It("should return an appropriate error", func() {
+					Expect(errResponse).To(MatchError("unknown access policy \"whatever\""))
+
+					Expect(errResponse).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
+					castErrResponse, ok := errResponse.(*brokerapi.FailureResponse)
+					Expect(ok).To(BeTrue())
+					Expect(castErrResponse.ValidatedStatusCode(nil)).To(Equal(400))
+				})
+				It("should not have created a stack", func() {
+					Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(BeZero())
+				})
 			})
 		})
 	})
