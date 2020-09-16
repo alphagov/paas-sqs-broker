@@ -120,6 +120,7 @@ The following options can be added to the configuration file:
 | `log_level`                      | debug         | string | debug,info,error,fatal                                                     |
 | `aws_region`                     | empty string  | string | any [AWS region](https://docs.aws.amazon.com/general/latest/gr/rande.html) |
 | `resource_prefix`                | empty string  | string | any                                                                        |
+| `permissions_boundary`                | empty string  | string | any                                                                        |
 | `deploy_env`                     | empty string  | string |                                                                            |
 
 ## Running tests
