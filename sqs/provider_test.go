@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	goformation "github.com/awslabs/goformation/v4"
@@ -880,6 +881,25 @@ var _ = Describe("Provider", func() {
 					castErrResponse, ok := errResponse.(*brokerapi.FailureResponse)
 					Expect(ok).To(BeTrue())
 					Expect(castErrResponse.ValidatedStatusCode(nil)).To(Equal(400))
+				})
+				It("should not have created a stack", func() {
+					Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(BeZero())
+				})
+			})
+
+			Context("when a nonexistent queue stack is specified", func() {
+				BeforeEach(func() {
+					fakeCfnClient.DescribeStacksWithContextReturnsOnCall(0, nil,
+						awserr.New("ResourceNotFoundException", "Nope couldn't find that", nil),
+					)
+				})
+				It("should return an appropriate error", func() {
+					Expect(errResponse).To(MatchError("instance does not exist"))
+
+					Expect(errResponse).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
+					castErrResponse, ok := errResponse.(*brokerapi.FailureResponse)
+					Expect(ok).To(BeTrue())
+					Expect(castErrResponse.ValidatedStatusCode(nil)).To(Equal(410))
 				})
 				It("should not have created a stack", func() {
 					Expect(fakeCfnClient.CreateStackWithContextCallCount()).To(BeZero())
