@@ -47,26 +47,16 @@ type Provider struct {
 }
 
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
-	tags := map[string]string{
-		"Name":        provisionData.InstanceID,
-		"Service":     "sqs",
-		"ServiceID":   provisionData.Details.ServiceID,
-		"Environment": s.Environment,
-	}
-	queueName := s.getStackName(provisionData.InstanceID)
-	isFIFO := provisionData.Plan.Name == "fifo"
+	tmplParams := TemplateParams{}
+	tmplParams.QueueName = s.getStackName(provisionData.InstanceID)
+	tmplParams.IsFIFO = provisionData.Plan.Name == "fifo"
+	tmplParams.Tags.Name = provisionData.InstanceID
+	tmplParams.Tags.ServiceID = provisionData.Details.ServiceID
+	tmplParams.Tags.Environment = s.Environment
 
-	tmpl, err := QueueTemplate(queueName, isFIFO, tags)
-	if err != nil {
-		return nil, err
-	}
+	tmpl := QueueTemplate(tmplParams)
 
-	yaml, err := tmpl.YAML()
-	if err != nil {
-		return nil, err
-	}
-
-	params := TemplateParams{}
+	params := StackParams{}
 	if provisionData.Details.RawParameters != nil {
 		if err := json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
 			return nil, err
@@ -93,9 +83,9 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 		stackParams = append(stackParams, mkParameter(ParamVisibilityTimeout, *params.VisibilityTimeout))
 	}
 
-	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
+	_, err := s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
-		TemplateBody: aws.String(string(yaml)),
+		TemplateBody: aws.String(tmpl),
 		StackName:    aws.String(s.getStackName(provisionData.InstanceID)),
 		Parameters:   stackParams,
 	})
@@ -238,7 +228,7 @@ func (s *Provider) Unbind(ctx context.Context, unbindData provideriface.UnbindDa
 }
 
 func (s *Provider) Update(ctx context.Context, updateData provideriface.UpdateData) (*domain.UpdateServiceSpec, error) {
-	params := TemplateParams{}
+	params := StackParams{}
 	if updateData.Details.RawParameters != nil {
 		if err := json.Unmarshal(updateData.Details.RawParameters, &params); err != nil {
 			return nil, err

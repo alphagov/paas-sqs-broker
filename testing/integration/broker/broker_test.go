@@ -241,20 +241,20 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 			Expect(output.Attributes).To(
 				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
 
-			var redrivePolicy struct {
-				deadLetterTargetArn string
-				maxReceiveCount     int
-			}
 			Expect(output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]).ToNot(BeNil())
+
+			var redrivePolicy map[string]interface{}
 			Expect(
 				json.Unmarshal(
 					[]byte(*output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]),
 					&redrivePolicy,
 				),
 			).To(Succeed())
-
-			Expect(redrivePolicy.deadLetterTargetArn).To(ContainSubstring("-sec"))
-			Expect(redrivePolicy.maxReceiveCount).To(Equal(3))
+			Expect(redrivePolicy).To(And(
+				HaveKeyWithValue("deadLetterTargetArn", ContainSubstring("-sec")),
+				// JSON unmarshals numbers float64 rather than int, so
+				// we use BeNumerically() to be numeric-type-agnostic
+				HaveKeyWithValue("maxReceiveCount", BeNumerically("==", 3))))
 		})
 	})
 

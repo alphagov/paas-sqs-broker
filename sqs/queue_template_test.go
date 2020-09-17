@@ -2,38 +2,38 @@ package sqs_test
 
 import (
 	"github.com/alphagov/paas-sqs-broker/sqs"
+	goformation "github.com/awslabs/goformation/v4"
+	goformationsqs "github.com/awslabs/goformation/v4/cloudformation/sqs"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("QueueTemplate", func() {
-	var primaryQueue *sqs.Queue
-	var secondaryQueue *sqs.Queue
-	var queueName string
-	var isFIFO bool
-	var tags map[string]string
+	var primaryQueue *goformationsqs.Queue
+	var secondaryQueue *goformationsqs.Queue
+	var tmplParams sqs.TemplateParams
 
 	BeforeEach(func() {
-		queueName = ""
-		isFIFO = false
-		tags = nil
+		tmplParams = sqs.TemplateParams{}
 	})
 
 	JustBeforeEach(func() {
-		t, err := sqs.QueueTemplate(queueName, isFIFO, tags)
+		text := sqs.QueueTemplate(tmplParams)
+		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&sqs.Queue{})))
+
+		Expect(t.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsqs.Queue{})))
 		var ok bool
-		primaryQueue, ok = t.Resources[sqs.ResourcePrimaryQueue].(*sqs.Queue)
+		primaryQueue, ok = t.Resources[sqs.ResourcePrimaryQueue].(*goformationsqs.Queue)
 		Expect(ok).To(BeTrue())
-		secondaryQueue, ok = t.Resources[sqs.ResourceSecondaryQueue].(*sqs.Queue)
+		secondaryQueue, ok = t.Resources[sqs.ResourceSecondaryQueue].(*goformationsqs.Queue)
 		Expect(ok).To(BeTrue())
 	})
 
-	Context("when queueName is set", func() {
+	Context("when QueueName is set", func() {
 		BeforeEach(func() {
-			queueName = "q-name-a"
+			tmplParams.QueueName = "q-name-a"
 		})
 		It("should set primary queue name", func() {
 			Expect(primaryQueue.QueueName).To(HavePrefix("q-name-a"))
@@ -47,10 +47,9 @@ var _ = Describe("QueueTemplate", func() {
 
 	Context("when tags are set", func() {
 		BeforeEach(func() {
-			tags = map[string]string{
-				"Service":   "sqs",
-				"DeployEnv": "autom8",
-			}
+			tmplParams.Tags.Name = "instance-1234"
+			tmplParams.Tags.ServiceID = "service-abcd"
+			tmplParams.Tags.Environment = "autom8"
 		})
 		It("should have suitable tags", func() {
 			Expect(primaryQueue.Tags).To(ConsistOf(
@@ -59,11 +58,19 @@ var _ = Describe("QueueTemplate", func() {
 					Value: "Primary",
 				},
 				goformationtags.Tag{
+					Key:   "Name",
+					Value: "instance-1234",
+				},
+				goformationtags.Tag{
 					Key:   "Service",
 					Value: "sqs",
 				},
 				goformationtags.Tag{
-					Key:   "DeployEnv",
+					Key:   "ServiceID",
+					Value: "service-abcd",
+				},
+				goformationtags.Tag{
+					Key:   "Environment",
 					Value: "autom8",
 				},
 			))
@@ -73,11 +80,19 @@ var _ = Describe("QueueTemplate", func() {
 					Value: "Secondary",
 				},
 				goformationtags.Tag{
+					Key:   "Name",
+					Value: "instance-1234",
+				},
+				goformationtags.Tag{
 					Key:   "Service",
 					Value: "sqs",
 				},
 				goformationtags.Tag{
-					Key:   "DeployEnv",
+					Key:   "ServiceID",
+					Value: "service-abcd",
+				},
+				goformationtags.Tag{
+					Key:   "Environment",
 					Value: "autom8",
 				},
 			))
@@ -89,9 +104,9 @@ var _ = Describe("QueueTemplate", func() {
 		Expect(secondaryQueue.FifoQueue).To(BeFalse())
 	})
 
-	Context("when fifoQueue is set", func() {
+	Context("when IsFIFO is set", func() {
 		BeforeEach(func() {
-			isFIFO = true
+			tmplParams.IsFIFO = true
 		})
 		It("should set queue FifoQueue from spec", func() {
 			Expect(primaryQueue.FifoQueue).To(BeTrue())
@@ -100,7 +115,8 @@ var _ = Describe("QueueTemplate", func() {
 	})
 
 	It("should have outputs for connection details", func() {
-		t, err := sqs.QueueTemplate("", false, nil)
+		text := sqs.QueueTemplate(sqs.TemplateParams{})
+		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
 			HaveKey(sqs.OutputPrimaryQueueARN),
