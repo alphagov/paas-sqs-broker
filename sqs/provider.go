@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 )
 
 var (
@@ -47,9 +49,11 @@ type Provider struct {
 }
 
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
+	if provisionData.Plan.Name == "fifo" {
+		return nil, apiresponses.NewFailureResponseBuilder(errors.New("FIFO plan unimplemented"), http.StatusNotImplemented, "not-implemented").WithEmptyResponse().Build()
+	}
 	tmplParams := TemplateParams{}
 	tmplParams.QueueName = s.getStackName(provisionData.InstanceID)
-	tmplParams.IsFIFO = provisionData.Plan.Name == "fifo"
 	tmplParams.Tags.Name = provisionData.InstanceID
 	tmplParams.Tags.ServiceID = provisionData.Details.ServiceID
 	tmplParams.Tags.Environment = s.Environment

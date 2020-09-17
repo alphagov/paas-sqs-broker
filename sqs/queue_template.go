@@ -33,7 +33,6 @@ const (
 // itself, not passed in as a stack parameter at create/update time.
 type TemplateParams struct {
 	QueueName string
-	IsFIFO    bool
 	Tags      struct {
 		Name        string
 		ServiceID   string
@@ -48,12 +47,6 @@ type TemplateParams struct {
 // then it should be in StackParams so that CloudFormation can keep
 // track of its value across updates.
 type StackParams struct {
-	// ContentBasedDeduplication For first-in-first-out (FIFO) queues,
-	// specifies whether to enable content-based deduplication. During the
-	// deduplication interval, Amazon SQS treats messages that are sent with
-	// identical content as duplicates and delivers only one copy of the
-	// message.  (FIXME unimplemented)
-	ContentBasedDeduplication *bool `json:"content_based_deduplication,omitempty"`
 	// DelaySeconds The time in seconds for which the delivery of all messages
 	// in the queue is delayed. You can specify an integer value of 0 to 900
 	// (15 minutes).
@@ -95,5 +88,5 @@ type StackParams struct {
 
 // GetStackTemplate returns a cloudformation Template for provisioning an SQS queue
 func QueueTemplate(templateParams TemplateParams) string {
-	return fmt.Sprintf(queueTemplateFormat, templateParams.QueueName, templateParams.IsFIFO, templateParams.Tags.Name, templateParams.Tags.ServiceID, templateParams.Tags.Environment)
+	return fmt.Sprintf(queueTemplateFormat, templateParams.QueueName, templateParams.Tags.Name, templateParams.Tags.ServiceID, templateParams.Tags.Environment)
 }

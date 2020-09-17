@@ -79,15 +79,14 @@ Resources:
       - Key: QueueType
         Value: Primary
       - Key: Name
-        Value: %[3]s
+        Value: %[2]s
       - Key: Service
         Value: sqs
       - Key: ServiceID
-        Value: %[4]s
+        Value: %[3]s
       - Key: Environment
-        Value: %[5]s
+        Value: %[4]s
       DelaySeconds: !Ref DelaySeconds
-#      FifoQueue: %[2]t
       MaximumMessageSize: !Ref MaximumMessageSize
       MessageRetentionPeriod: !Ref MessageRetentionPeriod
       ReceiveMessageWaitTimeSeconds: !Ref ReceiveMessageWaitTimeSeconds
@@ -108,14 +107,13 @@ Resources:
       - Key: QueueType
         Value: Secondary
       - Key: Name
-        Value: %[3]s
+        Value: %[2]s
       - Key: Service
         Value: sqs
       - Key: ServiceID
-        Value: %[4]s
+        Value: %[3]s
       - Key: Environment
-        Value: %[5]s
-#      FifoQueue: %[2]t
+        Value: %[4]s
       MessageRetentionPeriod: !Ref MessageRetentionPeriod
       VisibilityTimeout: !Ref VisibilityTimeout
     Type: AWS::SQS::Queue

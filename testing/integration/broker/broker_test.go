@@ -47,7 +47,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 
 		provisionValues = brokertesting.RequestBody{
 			ServiceID:        "uuid-1",
-			PlanID:           "uuid-2",
+			PlanID:           "uuid-2", // standard (non-FIFO) queue plan
 			OrganizationGUID: uuid.NewV4().String(),
 			Parameters: &brokertesting.ConfigurationValues{
 				"message_retention_period": 60,
