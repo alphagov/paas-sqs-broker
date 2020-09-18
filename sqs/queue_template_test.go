@@ -9,17 +9,18 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("QueueTemplate", func() {
+var _ = Describe("QueueTemplateBuilder", func() {
 	var primaryQueue *goformationsqs.Queue
 	var secondaryQueue *goformationsqs.Queue
-	var tmplParams sqs.QueueImmutableParams
+	var builder sqs.QueueTemplateBuilder
 
 	BeforeEach(func() {
-		tmplParams = sqs.QueueImmutableParams{}
+		builder = sqs.QueueTemplateBuilder{}
 	})
 
 	JustBeforeEach(func() {
-		text := sqs.QueueTemplate(tmplParams)
+		text, err := builder.Build()
+		Expect(err).ToNot(HaveOccurred())
 		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 
@@ -33,7 +34,7 @@ var _ = Describe("QueueTemplate", func() {
 
 	Context("when QueueName is set", func() {
 		BeforeEach(func() {
-			tmplParams.QueueName = "q-name-a"
+			builder.QueueName = "q-name-a"
 		})
 		It("should set primary queue name", func() {
 			Expect(primaryQueue.QueueName).To(HavePrefix("q-name-a"))
@@ -47,9 +48,9 @@ var _ = Describe("QueueTemplate", func() {
 
 	Context("when tags are set", func() {
 		BeforeEach(func() {
-			tmplParams.Tags.Name = "instance-1234"
-			tmplParams.Tags.ServiceID = "service-abcd"
-			tmplParams.Tags.Environment = "autom8"
+			builder.Tags.Name = "instance-1234"
+			builder.Tags.ServiceID = "service-abcd"
+			builder.Tags.Environment = "autom8"
 		})
 		It("should have suitable tags", func() {
 			Expect(primaryQueue.Tags).To(ConsistOf(
@@ -106,7 +107,7 @@ var _ = Describe("QueueTemplate", func() {
 
 	XContext("when IsFIFO is set", func() {
 		BeforeEach(func() {
-			// tmplParams.IsFIFO = true
+			// builder.IsFIFO = true
 		})
 		It("should set queue FifoQueue from spec", func() {
 			Expect(primaryQueue.FifoQueue).To(BeTrue())
@@ -115,7 +116,8 @@ var _ = Describe("QueueTemplate", func() {
 	})
 
 	It("should have outputs for connection details", func() {
-		text := sqs.QueueTemplate(sqs.QueueImmutableParams{})
+		text, err := sqs.QueueTemplateBuilder{}.Build()
+		Expect(err).ToNot(HaveOccurred())
 		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(

@@ -52,22 +52,25 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 	if provisionData.Plan.Name == "fifo" {
 		return nil, apiresponses.NewFailureResponseBuilder(errors.New("FIFO plan unimplemented"), http.StatusNotImplemented, "not-implemented").WithEmptyResponse().Build()
 	}
-	tmplParams := QueueImmutableParams{}
-	tmplParams.QueueName = s.getStackName(provisionData.InstanceID)
-	tmplParams.Tags.Name = provisionData.InstanceID
-	tmplParams.Tags.ServiceID = provisionData.Details.ServiceID
-	tmplParams.Tags.Environment = s.Environment
+	queueTemplate := QueueTemplateBuilder{}
+	queueTemplate.QueueName = s.getStackName(provisionData.InstanceID)
+	queueTemplate.Tags.Name = provisionData.InstanceID
+	queueTemplate.Tags.ServiceID = provisionData.Details.ServiceID
+	queueTemplate.Tags.Environment = s.Environment
 
-	tmpl := QueueTemplate(tmplParams)
+	tmpl, err := queueTemplate.Build()
+	if err != nil {
+		return nil, err
+	}
 
-	params := QueueUpdatableParams{}
+	params := QueueParams{}
 	if provisionData.Details.RawParameters != nil {
-		if err := json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
+		if err = json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
 			return nil, err
 		}
 	}
 
-	_, err := s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
+	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
 		TemplateBody: aws.String(tmpl),
 		StackName:    aws.String(s.getStackName(provisionData.InstanceID)),
@@ -205,7 +208,7 @@ func (s *Provider) Unbind(ctx context.Context, unbindData provideriface.UnbindDa
 }
 
 func (s *Provider) Update(ctx context.Context, updateData provideriface.UpdateData) (*domain.UpdateServiceSpec, error) {
-	params := QueueUpdatableParams{}
+	params := QueueParams{}
 	if updateData.Details.RawParameters != nil {
 		if err := json.Unmarshal(updateData.Details.RawParameters, &params); err != nil {
 			return nil, err

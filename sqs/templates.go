@@ -1,10 +1,8 @@
 package sqs
 
-// queueTemplateFormat is a raw format string for generating a
-// CloudFormation template for an SQS queue.  The names in here
-// carefully match constants in queue_template.go, and there are
-// format specifiers such as %[1]s that pull in numbered arguments to
-// a fmt.Sprintf() call.
+// queueTemplateFormat is a raw text/template for generating a
+// CloudFormation template for an SQS queue.  It expects to be given a
+// QueueTemplateBuilder struct.
 const queueTemplateFormat = `
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
@@ -74,18 +72,18 @@ Conditions:
 Resources:
   PrimaryQueue:
     Properties:
-      QueueName: %[1]s-pri
+      QueueName: {{.QueueName}}-pri
       Tags:
       - Key: QueueType
         Value: Primary
       - Key: Name
-        Value: %[2]s
+        Value: {{.Tags.Name}}
       - Key: Service
         Value: sqs
       - Key: ServiceID
-        Value: %[3]s
+        Value: {{.Tags.ServiceID}}
       - Key: Environment
-        Value: %[4]s
+        Value: {{.Tags.Environment}}
       DelaySeconds: !Ref DelaySeconds
       MaximumMessageSize: !Ref MaximumMessageSize
       MessageRetentionPeriod: !Ref MessageRetentionPeriod
@@ -102,18 +100,18 @@ Resources:
     Type: AWS::SQS::Queue
   SecondaryQueue:
     Properties:
-      QueueName: %[1]s-sec
+      QueueName: {{.QueueName}}-sec
       Tags:
       - Key: QueueType
         Value: Secondary
       - Key: Name
-        Value: %[2]s
+        Value: {{.Tags.Name}}
       - Key: Service
         Value: sqs
       - Key: ServiceID
-        Value: %[3]s
+        Value: {{.Tags.ServiceID}}
       - Key: Environment
-        Value: %[4]s
+        Value: {{.Tags.Environment}}
       MessageRetentionPeriod: !Ref MessageRetentionPeriod
       VisibilityTimeout: !Ref VisibilityTimeout
     Type: AWS::SQS::Queue
@@ -121,7 +119,7 @@ Outputs:
   PrimaryQueueARN:
     Description: Primary queue ARN
     Export:
-      Name: %[1]s-PrimaryQueueARN
+      Name: {{.QueueName}}-PrimaryQueueARN
     Value:
       Fn::GetAtt:
       - PrimaryQueue
@@ -129,12 +127,12 @@ Outputs:
   PrimaryQueueURL:
     Description: Primary queue URL
     Export:
-      Name: %[1]s-PrimaryQueueURL
+      Name: {{.QueueName}}-PrimaryQueueURL
     Value: !Ref PrimaryQueue
   SecondaryQueueARN:
     Description: Secondary queue ARN
     Export:
-      Name: %[1]s-SecondaryQueueARN
+      Name: {{.QueueName}}-SecondaryQueueARN
     Value:
       Fn::GetAtt:
       - SecondaryQueue
@@ -142,6 +140,6 @@ Outputs:
   SecondaryQueueURL:
     Description: Secondary queue URL
     Export:
-      Name: %[1]s-SecondaryQueueURL
+      Name: {{.QueueName}}-SecondaryQueueURL
     Value: !Ref SecondaryQueue
 `
