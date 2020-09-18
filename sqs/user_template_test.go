@@ -17,16 +17,16 @@ var _ = Describe("UserTemplate", func() {
 	var user *goformationiam.User
 	var accessKey *goformationiam.AccessKey
 	var policy *goformationiam.Policy
-	var params sqs.UserParams
+	var builder sqs.UserTemplateBuilder
 	var template *goformation.Template
 
 	BeforeEach(func() {
-		params = sqs.UserParams{}
+		builder = sqs.UserTemplateBuilder{}
 	})
 
 	JustBeforeEach(func() {
 		var err error
-		template, err = sqs.UserTemplate(params)
+		template, err = builder.Build()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
@@ -44,7 +44,7 @@ var _ = Describe("UserTemplate", func() {
 	})
 
 	It("should not have any input parameters", func() {
-		t, err := sqs.UserTemplate(sqs.UserParams{})
+		t, err := sqs.UserTemplateBuilder{}.Build()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Parameters).To(BeEmpty())
 	})
@@ -73,8 +73,8 @@ var _ = Describe("UserTemplate", func() {
 
 	Context("when binding id and prefix are set", func() {
 		BeforeEach(func() {
-			params.BindingID = "xxxx-xxxx-xxxx"
-			params.ResourcePrefix = "prefixed-path"
+			builder.BindingID = "xxxx-xxxx-xxxx"
+			builder.ResourcePrefix = "prefixed-path"
 		})
 		It("should set the user name and path", func() {
 			Expect(user.UserName).To(Equal("binding-xxxx-xxxx-xxxx"))
@@ -85,7 +85,7 @@ var _ = Describe("UserTemplate", func() {
 
 	Context("when tags are set", func() {
 		BeforeEach(func() {
-			params.Tags = map[string]string{
+			builder.Tags = map[string]string{
 				"Service":   "sqs",
 				"DeployEnv": "autom8",
 			}
@@ -106,7 +106,7 @@ var _ = Describe("UserTemplate", func() {
 
 	Context("when the access policy is 'producer'", func() {
 		BeforeEach(func() {
-			params.AccessPolicy = "producer"
+			builder.AccessPolicy = "producer"
 		})
 		It("should use the 'producer' canned access policy", func() {
 			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
@@ -123,7 +123,7 @@ var _ = Describe("UserTemplate", func() {
 
 	Context("when the access policy is 'consumer'", func() {
 		BeforeEach(func() {
-			params.AccessPolicy = "consumer"
+			builder.AccessPolicy = "consumer"
 		})
 		It("should use the 'consumer' canned access policy", func() {
 			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
@@ -142,7 +142,7 @@ var _ = Describe("UserTemplate", func() {
 
 	Context("when the access policy is unspecified", func() {
 		BeforeEach(func() {
-			params.AccessPolicy = ""
+			builder.AccessPolicy = ""
 		})
 		It("should use the 'full' canned access policy", func() {
 			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
@@ -162,17 +162,18 @@ var _ = Describe("UserTemplate", func() {
 	})
 
 	It("should return an error for unknown access policies", func() {
-		t, err := sqs.UserTemplate(sqs.UserParams{
+		t, err := sqs.UserTemplateBuilder{
 			AccessPolicy: "bananas",
-		})
+		}.Build()
+
 		Expect(t).To(BeNil())
 		Expect(err).To(MatchError("unknown access policy \"bananas\""))
 	})
 
 	Context("when queue ARNs are set", func() {
 		BeforeEach(func() {
-			params.PrimaryQueueARN = "abc"
-			params.SecondaryQueueARN = "qwe"
+			builder.PrimaryQueueARN = "abc"
+			builder.SecondaryQueueARN = "qwe"
 		})
 		It("the policy is scoped to the queue ARNs", func() {
 			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
@@ -200,7 +201,7 @@ var _ = Describe("UserTemplate", func() {
 	})
 
 	It("should have an output for the secretsmanager path to credentials", func() {
-		t, err := sqs.UserTemplate(sqs.UserParams{})
+		t, err := sqs.UserTemplateBuilder{}.Build()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
 			HaveKey(sqs.OutputCredentialsARN),

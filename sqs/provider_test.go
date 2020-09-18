@@ -795,7 +795,7 @@ var _ = Describe("Provider", func() {
 					bindData.Details.RawParameters = json.RawMessage(`{"access_policy":[123]}`)
 				})
 				It("should return an appropriate error", func() {
-					Expect(errResponse).To(MatchError("json: cannot unmarshal array into Go struct field UserParams.access_policy of type string"))
+					Expect(errResponse).To(MatchError("json: cannot unmarshal array into Go struct field UserTemplateBuilder.access_policy of type string"))
 
 					Expect(errResponse).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
 					castErrResponse, ok := errResponse.(*brokerapi.FailureResponse)

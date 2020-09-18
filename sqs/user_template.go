@@ -27,13 +27,12 @@ const (
 type AccessPolicy = string
 
 const (
-    AccessPolicyFull AccessPolicy = "full"
-    AccessPolicyProducer AccessPolicy = "producer"
-    AccessPolicyConsumer AccessPolicy = "consumer"
+	AccessPolicyFull     AccessPolicy = "full"
+	AccessPolicyProducer AccessPolicy = "producer"
+	AccessPolicyConsumer AccessPolicy = "consumer"
 )
 
-
-type UserParams struct {
+type UserTemplateBuilder struct {
 	BindingID           string            `json:"-"`
 	ResourcePrefix      string            `json:"-"`
 	UserPath            string            `json:"-"`
@@ -54,22 +53,22 @@ type Credentials struct {
 	SecondaryQueueURL  string `json:"secondary_queue_url"`
 }
 
-func UserTemplate(params UserParams) (*goformation.Template, error) {
+func (builder UserTemplateBuilder) Build() (*goformation.Template, error) {
 	template := goformation.NewTemplate()
 
 	tags := []goformationtags.Tag{}
-	for k, v := range params.Tags {
+	for k, v := range builder.Tags {
 		tags = append(tags, goformationtags.Tag{
 			Key:   k,
 			Value: v,
 		})
 	}
 
-	if params.AccessPolicy == "" {
-		params.AccessPolicy = "full"
+	if builder.AccessPolicy == "" {
+		builder.AccessPolicy = "full"
 	}
 
-	cannedPolicy, err := getCannedAccessPolicy(params.AccessPolicy)
+	cannedPolicy, err := getCannedAccessPolicy(builder.AccessPolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +80,8 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 				Effect: "Allow",
 				Action: cannedPolicy,
 				Resource: []string{
-					params.PrimaryQueueARN,
-					params.SecondaryQueueARN,
+					builder.PrimaryQueueARN,
+					builder.SecondaryQueueARN,
 				},
 			},
 		},
@@ -99,8 +98,8 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 		AWSAccessKeyID:     fmt.Sprintf("${%s}", ResourceAccessKey),
 		AWSSecretAccessKey: fmt.Sprintf("${%s.SecretAccessKey}", ResourceAccessKey),
 		AWSRegion:          "${AWS::Region}",
-		PrimaryQueueURL:    params.PrimaryQueueURL,
-		SecondaryQueueURL:  params.SecondaryQueueURL,
+		PrimaryQueueURL:    builder.PrimaryQueueURL,
+		SecondaryQueueURL:  builder.SecondaryQueueURL,
 	}
 	credentialsTemplate, err := json.Marshal(credentialsPlaceholders)
 	if err != nil {
@@ -108,10 +107,10 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 	}
 
 	template.Resources[ResourceUser] = &goformationiam.User{
-		UserName:            fmt.Sprintf("binding-%s", params.BindingID),
-		Path:                fmt.Sprintf("/%s/", params.ResourcePrefix),
+		UserName:            fmt.Sprintf("binding-%s", builder.BindingID),
+		Path:                fmt.Sprintf("/%s/", builder.ResourcePrefix),
 		Tags:                tags,
-		PermissionsBoundary: params.PermissionsBoundary,
+		PermissionsBoundary: builder.PermissionsBoundary,
 	}
 
 	template.Resources[ResourceAccessKey] = &goformationiam.AccessKey{
@@ -121,7 +120,7 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 	}
 
 	template.Resources[ResourcePolicy] = &goformationiam.Policy{
-		PolicyName:     fmt.Sprintf("%s-%s", params.ResourcePrefix, params.BindingID),
+		PolicyName:     fmt.Sprintf("%s-%s", builder.ResourcePrefix, builder.BindingID),
 		PolicyDocument: policy,
 		Users: []string{
 			goformation.Ref(ResourceUser),
@@ -130,7 +129,7 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 
 	template.Resources[ResourceCredentials] = &goformationsecretsmanager.Secret{
 		Description:  "Binding credentials",
-		Name:         fmt.Sprintf("%s-%s", params.ResourcePrefix, params.BindingID),
+		Name:         fmt.Sprintf("%s-%s", builder.ResourcePrefix, builder.BindingID),
 		SecretString: goformation.Sub(credentialsTemplate),
 	}
 
@@ -138,7 +137,7 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 		Description: "Path to the binding credentials",
 		Value:       goformation.Ref(ResourceCredentials),
 		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.BindingID, OutputCredentialsARN), // export should not be required, this is a goformation bug
+			Name: fmt.Sprintf("%s-%s", builder.BindingID, OutputCredentialsARN), // export should not be required, this is a goformation bug
 		},
 	}
 
@@ -194,42 +193,42 @@ func NewRolePolicyDocument(resources, actions []string) PolicyDocument {
 
 func getCannedAccessPolicy(policyName string) ([]string, error) {
 	switch policyName {
-		case AccessPolicyFull:
-			return []string{
-				"sqs:ChangeMessageVisibility",
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-				"sqs:SendMessage",
-			}, nil
-		case AccessPolicyProducer:
-			return []string{
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:SendMessage",
-			}, nil
-		case AccessPolicyConsumer:
-			return []string{
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-			}, nil
+	case AccessPolicyFull:
+		return []string{
+			"sqs:ChangeMessageVisibility",
+			"sqs:DeleteMessage",
+			"sqs:GetQueueAttributes",
+			"sqs:GetQueueUrl",
+			"sqs:ListDeadLetterSourceQueues",
+			"sqs:ListQueueTags",
+			"sqs:PurgeQueue",
+			"sqs:ReceiveMessage",
+			"sqs:SendMessage",
+		}, nil
+	case AccessPolicyProducer:
+		return []string{
+			"sqs:GetQueueAttributes",
+			"sqs:GetQueueUrl",
+			"sqs:ListDeadLetterSourceQueues",
+			"sqs:ListQueueTags",
+			"sqs:SendMessage",
+		}, nil
+	case AccessPolicyConsumer:
+		return []string{
+			"sqs:DeleteMessage",
+			"sqs:GetQueueAttributes",
+			"sqs:GetQueueUrl",
+			"sqs:ListDeadLetterSourceQueues",
+			"sqs:ListQueueTags",
+			"sqs:PurgeQueue",
+			"sqs:ReceiveMessage",
+		}, nil
 
-		default:
-			return nil, apiresponses.NewFailureResponse(
-				fmt.Errorf("unknown access policy %#v", policyName),
-				http.StatusBadRequest,
-				"unknown-access-policy",
-			)
+	default:
+		return nil, apiresponses.NewFailureResponse(
+			fmt.Errorf("unknown access policy %#v", policyName),
+			http.StatusBadRequest,
+			"unknown-access-policy",
+		)
 	}
 }
