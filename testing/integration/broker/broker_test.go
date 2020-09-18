@@ -47,7 +47,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 
 		provisionValues = brokertesting.RequestBody{
 			ServiceID:        "uuid-1",
-			PlanID:           "uuid-2",
+			PlanID:           "uuid-2", // standard (non-FIFO) queue plan
 			OrganizationGUID: uuid.NewV4().String(),
 			Parameters: &brokertesting.ConfigurationValues{
 				"message_retention_period": 60,
@@ -100,31 +100,6 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 			)
 
 			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("updating", func() {
-			res := broker.Update(instanceID, brokertesting.RequestBody{
-				ServiceID: provisionValues.ServiceID,
-				PlanID:    provisionValues.PlanID,
-				Parameters: &brokertesting.ConfigurationValues{
-					"message_retention_period": 120,
-				},
-				PreviousValues: &provisionValues,
-			}, ASYNC_ALLOWED)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("waiting for update process to complete", func() {
-			updateState := lastServiceOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				sqs.UpdateOperation,
-			)
-
-			Eventually(updateState).Should(BeSuccessState())
 		})
 
 		By("binding", func() {
@@ -193,6 +168,44 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 			Expect(binding.Credentials.SecondaryQueueURL).ToNot(BeEmpty())
 		})
 
+		By("checking we see expected configuration", func() {
+			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
+				QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
+				AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			// We haven't set redrive_max_receive_count so there shouldn't be a redrive policy
+			Expect(output.Attributes).ToNot(HaveKey(awssqs.QueueAttributeNameRedrivePolicy))
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
+		})
+
+		By("updating", func() {
+			res := broker.Update(instanceID, brokertesting.RequestBody{
+				ServiceID: provisionValues.ServiceID,
+				PlanID:    provisionValues.PlanID,
+				Parameters: &brokertesting.ConfigurationValues{
+					"delay_seconds":             30,
+					"redrive_max_receive_count": 3,
+				},
+				PreviousValues: &provisionValues,
+			}, ASYNC_ALLOWED)
+
+			Expect(res.Code).To(Equal(http.StatusAccepted))
+		})
+
+		By("waiting for update process to complete", func() {
+			updateState := lastServiceOperationChan(
+				broker,
+				instanceID,
+				provisionValues.ServiceID,
+				provisionValues.PlanID,
+				sqs.UpdateOperation,
+			)
+
+			Eventually(updateState).Should(BeSuccessState())
+		})
+
 		By("using binding credentials to access the service", func() {
 			sess := session.Must(session.NewSession(&aws.Config{
 				Region: aws.String(binding.Credentials.AWSRegion),
@@ -215,6 +228,33 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 				MaxNumberOfMessages: aws.Int64(10),
 			})
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		By("checking we see expected new configuration", func() {
+			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
+				QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
+				AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameDelaySeconds, aws.String("30")))
+			Expect(output.Attributes).To(
+				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
+
+			Expect(output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]).ToNot(BeNil())
+
+			var redrivePolicy map[string]interface{}
+			Expect(
+				json.Unmarshal(
+					[]byte(*output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]),
+					&redrivePolicy,
+				),
+			).To(Succeed())
+			Expect(redrivePolicy).To(And(
+				HaveKeyWithValue("deadLetterTargetArn", ContainSubstring("-sec")),
+				// JSON unmarshals numbers float64 rather than int, so
+				// we use BeNumerically() to be numeric-type-agnostic
+				HaveKeyWithValue("maxReceiveCount", BeNumerically("==", 3))))
 		})
 	})
 

@@ -50,38 +50,35 @@ type Provider struct {
 }
 
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
-	params := QueueParams{}
-	if provisionData.Details.RawParameters != nil {
-		if err := json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
-			return nil, err
-		}
+	if provisionData.Plan.Name == "fifo" {
+		return nil, apiresponses.NewFailureResponseBuilder(errors.New("FIFO plan unimplemented"), http.StatusNotImplemented, "not-implemented").WithEmptyResponse().Build()
 	}
-	params.Tags = map[string]string{
+	queueTemplate := QueueTemplateBuilder{}
+	queueTemplate.QueueName = s.getStackName(provisionData.InstanceID)
+	queueTemplate.Tags = map[string]string{
 		"Name":        provisionData.InstanceID,
 		"Service":     "sqs",
 		"ServiceID":   provisionData.Details.ServiceID,
 		"Environment": s.Environment,
 	}
-	params.QueueName = s.getStackName(provisionData.InstanceID)
-	if provisionData.Plan.Name == "fifo" {
-		params.FifoQueue = true
-	}
 
-	tmpl, err := QueueTemplate(params)
+	tmpl, err := queueTemplate.Build()
 	if err != nil {
 		return nil, err
 	}
 
-	yaml, err := tmpl.YAML()
-	if err != nil {
-		return nil, err
+	params := QueueParams{}
+	if provisionData.Details.RawParameters != nil {
+		if err = json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
+			return nil, err
+		}
 	}
 
 	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
-		TemplateBody: aws.String(string(yaml)),
+		TemplateBody: aws.String(tmpl),
 		StackName:    aws.String(s.getStackName(provisionData.InstanceID)),
-		Parameters:   []*cloudformation.Parameter{},
+		Parameters:   params.CreateParams(),
 	})
 	if err != nil {
 		return nil, err
@@ -236,32 +233,12 @@ func (s *Provider) Update(ctx context.Context, updateData provideriface.UpdateDa
 			return nil, err
 		}
 	}
-	params.Tags = map[string]string{
-		"Name":        updateData.InstanceID,
-		"Service":     "sqs",
-		"ServiceID":   updateData.Details.ServiceID,
-		"Environment": s.Environment,
-	}
-	params.QueueName = s.getStackName(updateData.InstanceID)
-	if updateData.Plan.Name == "fifo" {
-		params.FifoQueue = true
-	}
 
-	tmpl, err := QueueTemplate(params)
-	if err != nil {
-		return nil, err
-	}
-
-	yaml, err := tmpl.YAML()
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = s.Client.UpdateStackWithContext(ctx, &cloudformation.UpdateStackInput{
-		Capabilities: capabilities,
-		TemplateBody: aws.String(string(yaml)),
-		StackName:    aws.String(s.getStackName(updateData.InstanceID)),
-		Parameters:   []*cloudformation.Parameter{},
+	_, err := s.Client.UpdateStackWithContext(ctx, &cloudformation.UpdateStackInput{
+		Capabilities:        capabilities,
+		StackName:           aws.String(s.getStackName(updateData.InstanceID)),
+		Parameters:          params.UpdateParams(),
+		UsePreviousTemplate: aws.Bool(true),
 	})
 	if err != nil {
 		return nil, err
