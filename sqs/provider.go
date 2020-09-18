@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,7 +107,7 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 func mkParameter(name string, value int) *cloudformation.Parameter {
 	return &cloudformation.Parameter{
 		ParameterKey:   aws.String(name),
-		ParameterValue: aws.String(fmt.Sprint(value)),
+		ParameterValue: aws.String(strconv.Itoa(value)),
 	}
 }
 
@@ -271,7 +272,7 @@ func mkOptionalParameter(name string, value *int) *cloudformation.Parameter {
 	} else {
 		return &cloudformation.Parameter{
 			ParameterKey:   aws.String(name),
-			ParameterValue: aws.String(fmt.Sprint(*value)),
+			ParameterValue: aws.String(strconv.Itoa(*value)),
 		}
 	}
 }
