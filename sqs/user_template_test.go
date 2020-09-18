@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/alphagov/paas-sqs-broker/sqs"
-	goformation "github.com/awslabs/goformation/v4/cloudformation"
+	goformation "github.com/awslabs/goformation/v4"
+	goformationcfn "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
 	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
@@ -18,7 +19,7 @@ var _ = Describe("UserTemplate", func() {
 	var accessKey *goformationiam.AccessKey
 	var policy *goformationiam.Policy
 	var builder sqs.UserTemplateBuilder
-	var template *goformation.Template
+	var template *goformationcfn.Template
 
 	BeforeEach(func() {
 		builder = sqs.UserTemplateBuilder{}
@@ -26,7 +27,9 @@ var _ = Describe("UserTemplate", func() {
 
 	JustBeforeEach(func() {
 		var err error
-		template, err = builder.Build()
+		text, err := builder.Build()
+		Expect(err).ToNot(HaveOccurred())
+		template, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
@@ -44,7 +47,9 @@ var _ = Describe("UserTemplate", func() {
 	})
 
 	It("should not have any input parameters", func() {
-		t, err := sqs.UserTemplateBuilder{}.Build()
+		text, err := builder.Build()
+		Expect(err).ToNot(HaveOccurred())
+		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Parameters).To(BeEmpty())
 	})
@@ -201,7 +206,9 @@ var _ = Describe("UserTemplate", func() {
 	})
 
 	It("should have an output for the secretsmanager path to credentials", func() {
-		t, err := sqs.UserTemplateBuilder{}.Build()
+		text, err := builder.Build()
+		Expect(err).ToNot(HaveOccurred())
+		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(
 			HaveKey(sqs.OutputCredentialsARN),

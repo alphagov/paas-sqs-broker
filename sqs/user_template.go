@@ -1,16 +1,13 @@
 package sqs
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"text/template"
 
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
-
-	goformation "github.com/awslabs/goformation/v4/cloudformation"
-	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
-	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
-	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 )
 
 const (
@@ -53,40 +50,7 @@ type Credentials struct {
 	SecondaryQueueURL  string `json:"secondary_queue_url"`
 }
 
-func (builder UserTemplateBuilder) Build() (*goformation.Template, error) {
-	template := goformation.NewTemplate()
-
-	tags := []goformationtags.Tag{}
-	for k, v := range builder.Tags {
-		tags = append(tags, goformationtags.Tag{
-			Key:   k,
-			Value: v,
-		})
-	}
-
-	if builder.AccessPolicy == "" {
-		builder.AccessPolicy = "full"
-	}
-
-	cannedPolicy, err := getCannedAccessPolicy(builder.AccessPolicy)
-	if err != nil {
-		return nil, err
-	}
-
-	policy := PolicyDocument{
-		Version: "2012-10-17",
-		Statement: []PolicyStatement{
-			{
-				Effect: "Allow",
-				Action: cannedPolicy,
-				Resource: []string{
-					builder.PrimaryQueueARN,
-					builder.SecondaryQueueARN,
-				},
-			},
-		},
-	}
-
+func (builder UserTemplateBuilder) CredentialsJSON() (string, error) {
 	// this is a template representing the json credential for the binding.
 	// the values get interpolated with values from cloudformation
 	// once they are available.
@@ -103,45 +67,23 @@ func (builder UserTemplateBuilder) Build() (*goformation.Template, error) {
 	}
 	credentialsTemplate, err := json.Marshal(credentialsPlaceholders)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
+	return string(credentialsTemplate), nil
+}
 
-	template.Resources[ResourceUser] = &goformationiam.User{
-		UserName:            fmt.Sprintf("binding-%s", builder.BindingID),
-		Path:                fmt.Sprintf("/%s/", builder.ResourcePrefix),
-		Tags:                tags,
-		PermissionsBoundary: builder.PermissionsBoundary,
+func (builder UserTemplateBuilder) Build() (string, error) {
+	t, err := template.New("user-template").Parse(userTemplateFormat)
+	if err != nil {
+		return "", err
 	}
+	buf := new(bytes.Buffer)
 
-	template.Resources[ResourceAccessKey] = &goformationiam.AccessKey{
-		Serial:   1,
-		Status:   "Active",
-		UserName: goformation.Ref(ResourceUser),
+	err = t.Execute(buf, builder)
+	if err != nil {
+		return "", err
 	}
-
-	template.Resources[ResourcePolicy] = &goformationiam.Policy{
-		PolicyName:     fmt.Sprintf("%s-%s", builder.ResourcePrefix, builder.BindingID),
-		PolicyDocument: policy,
-		Users: []string{
-			goformation.Ref(ResourceUser),
-		},
-	}
-
-	template.Resources[ResourceCredentials] = &goformationsecretsmanager.Secret{
-		Description:  "Binding credentials",
-		Name:         fmt.Sprintf("%s-%s", builder.ResourcePrefix, builder.BindingID),
-		SecretString: goformation.Sub(credentialsTemplate),
-	}
-
-	template.Outputs[OutputCredentialsARN] = goformation.Output{
-		Description: "Path to the binding credentials",
-		Value:       goformation.Ref(ResourceCredentials),
-		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", builder.BindingID, OutputCredentialsARN), // export should not be required, this is a goformation bug
-		},
-	}
-
-	return template, nil
+	return buf.String(), nil
 }
 
 // helpers for building iam documents in cloudformation
@@ -191,8 +133,8 @@ func NewRolePolicyDocument(resources, actions []string) PolicyDocument {
 	}
 }
 
-func getCannedAccessPolicy(policyName string) ([]string, error) {
-	switch policyName {
+func (builder UserTemplateBuilder) GetAccessPolicy() ([]string, error) {
+	switch builder.AccessPolicy {
 	case AccessPolicyFull:
 		return []string{
 			"sqs:ChangeMessageVisibility",
@@ -226,7 +168,7 @@ func getCannedAccessPolicy(policyName string) ([]string, error) {
 
 	default:
 		return nil, apiresponses.NewFailureResponse(
-			fmt.Errorf("unknown access policy %#v", policyName),
+			fmt.Errorf("unknown access policy %#v", builder.AccessPolicy),
 			http.StatusBadRequest,
 			"unknown-access-policy",
 		)

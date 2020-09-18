@@ -169,14 +169,9 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		return nil, err
 	}
 
-	yaml, err := tmpl.YAML()
-	if err != nil {
-		return nil, err
-	}
-
 	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
-		TemplateBody: aws.String(string(yaml)),
+		TemplateBody: aws.String(tmpl),
 		StackName:    aws.String(s.getStackName(bindData.BindingID)),
 	})
 	if err != nil {
