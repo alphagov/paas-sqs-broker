@@ -54,9 +54,12 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 	}
 	queueTemplate := QueueTemplateBuilder{}
 	queueTemplate.QueueName = s.getStackName(provisionData.InstanceID)
-	queueTemplate.Tags.Name = provisionData.InstanceID
-	queueTemplate.Tags.ServiceID = provisionData.Details.ServiceID
-	queueTemplate.Tags.Environment = s.Environment
+	queueTemplate.Tags = map[string]string{
+		"Name":        provisionData.InstanceID,
+		"Service":     "sqs",
+		"ServiceID":   provisionData.Details.ServiceID,
+		"Environment": s.Environment,
+	}
 
 	tmpl, err := queueTemplate.Build()
 	if err != nil {

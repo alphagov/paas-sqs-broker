@@ -39,11 +39,7 @@ const (
 // exactly how the template is built.
 type QueueTemplateBuilder struct {
 	QueueName string
-	Tags      struct {
-		Name        string
-		ServiceID   string
-		Environment string
-	}
+	Tags      map[string]string
 }
 
 // Build returns a cloudformation Template for provisioning an SQS

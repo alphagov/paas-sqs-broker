@@ -76,14 +76,10 @@ Resources:
       Tags:
       - Key: QueueType
         Value: Primary
-      - Key: Name
-        Value: {{.Tags.Name}}
-      - Key: Service
-        Value: sqs
-      - Key: ServiceID
-        Value: {{.Tags.ServiceID}}
-      - Key: Environment
-        Value: {{.Tags.Environment}}
+{{ range $key, $value := .Tags }}
+      - Key: {{ $key }}
+        Value: {{ $value }}
+{{ end }}
       DelaySeconds: !Ref DelaySeconds
       MaximumMessageSize: !Ref MaximumMessageSize
       MessageRetentionPeriod: !Ref MessageRetentionPeriod
@@ -104,14 +100,10 @@ Resources:
       Tags:
       - Key: QueueType
         Value: Secondary
-      - Key: Name
-        Value: {{.Tags.Name}}
-      - Key: Service
-        Value: sqs
-      - Key: ServiceID
-        Value: {{.Tags.ServiceID}}
-      - Key: Environment
-        Value: {{.Tags.Environment}}
+{{ range $key, $value := .Tags }}
+      - Key: {{ $key }}
+        Value: {{ $value }}
+{{ end }}
       MessageRetentionPeriod: !Ref MessageRetentionPeriod
       VisibilityTimeout: !Ref VisibilityTimeout
     Type: AWS::SQS::Queue

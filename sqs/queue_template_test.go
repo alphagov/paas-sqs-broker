@@ -48,9 +48,12 @@ var _ = Describe("QueueTemplateBuilder", func() {
 
 	Context("when tags are set", func() {
 		BeforeEach(func() {
-			builder.Tags.Name = "instance-1234"
-			builder.Tags.ServiceID = "service-abcd"
-			builder.Tags.Environment = "autom8"
+			builder.Tags = map[string]string{
+				"Name":        "instance-1234",
+				"Service":     "sqs",
+				"ServiceID":   "service-abcd",
+				"Environment": "autom8",
+			}
 		})
 		It("should have suitable tags", func() {
 			Expect(primaryQueue.Tags).To(ConsistOf(
