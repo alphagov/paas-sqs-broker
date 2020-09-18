@@ -12,10 +12,10 @@ import (
 var _ = Describe("QueueTemplate", func() {
 	var primaryQueue *goformationsqs.Queue
 	var secondaryQueue *goformationsqs.Queue
-	var tmplParams sqs.TemplateParams
+	var tmplParams sqs.QueueImmutableParams
 
 	BeforeEach(func() {
-		tmplParams = sqs.TemplateParams{}
+		tmplParams = sqs.QueueImmutableParams{}
 	})
 
 	JustBeforeEach(func() {
@@ -115,7 +115,7 @@ var _ = Describe("QueueTemplate", func() {
 	})
 
 	It("should have outputs for connection details", func() {
-		text := sqs.QueueTemplate(sqs.TemplateParams{})
+		text := sqs.QueueTemplate(sqs.QueueImmutableParams{})
 		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(t.Outputs).To(And(

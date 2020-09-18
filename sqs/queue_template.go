@@ -2,6 +2,10 @@ package sqs
 
 import (
 	"fmt"
+	"strconv"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 )
 
 const (
@@ -29,9 +33,9 @@ const (
 	OutputSecondaryQueueARN = "SecondaryQueueARN"
 )
 
-// TemplateParams is the data that gets baked into the template
+// QueueImmutableParams is the data that gets baked into the template
 // itself, not passed in as a stack parameter at create/update time.
-type TemplateParams struct {
+type QueueImmutableParams struct {
 	QueueName string
 	Tags      struct {
 		Name        string
@@ -40,13 +44,13 @@ type TemplateParams struct {
 	}
 }
 
-// StackParams is the set of actual CloudFormation template
+// QueueUpdatableParams is the set of actual CloudFormation template
 // parameters that can be passed to the stack.  If it comes from user
 // configuration such as:
 //     cf create-service foo -c '{"my-config": "bar"}'`
-// then it should be in StackParams so that CloudFormation can keep
-// track of its value across updates.
-type StackParams struct {
+// then it should be in QueueUpdatableParams so that CloudFormation
+// can keep track of its value across updates.
+type QueueUpdatableParams struct {
 	// DelaySeconds The time in seconds for which the delivery of all messages
 	// in the queue is delayed. You can specify an integer value of 0 to 900
 	// (15 minutes).
@@ -86,7 +90,68 @@ type StackParams struct {
 	VisibilityTimeout *int `json:"visibility_timeout,omitempty"`
 }
 
+// CreateParams returns a set of cloudformation.Parameter suitable for
+// passing to CreateStackWithContext().
+func (params *QueueUpdatableParams) CreateParams() []*cloudformation.Parameter {
+	stackParams := []*cloudformation.Parameter{}
+	if params.DelaySeconds != nil {
+		stackParams = append(stackParams, mkParameter(ParamDelaySeconds, *params.DelaySeconds))
+	}
+	if params.MaximumMessageSize != nil {
+		stackParams = append(stackParams, mkParameter(ParamMaximumMessageSize, *params.MaximumMessageSize))
+	}
+	if params.MessageRetentionPeriod != nil {
+		stackParams = append(stackParams, mkParameter(ParamMessageRetentionPeriod, *params.MessageRetentionPeriod))
+	}
+	if params.ReceiveMessageWaitTimeSeconds != nil {
+		stackParams = append(stackParams, mkParameter(ParamReceiveMessageWaitTimeSeconds, *params.ReceiveMessageWaitTimeSeconds))
+	}
+	if params.RedriveMaxReceiveCount != nil {
+		stackParams = append(stackParams, mkParameter(ParamRedriveMaxReceiveCount, *params.RedriveMaxReceiveCount))
+	}
+	if params.VisibilityTimeout != nil {
+		stackParams = append(stackParams, mkParameter(ParamVisibilityTimeout, *params.VisibilityTimeout))
+	}
+	return stackParams
+}
+
+func mkParameter(name string, value int) *cloudformation.Parameter {
+	return &cloudformation.Parameter{
+		ParameterKey:   aws.String(name),
+		ParameterValue: aws.String(strconv.Itoa(value)),
+	}
+}
+
+// UpdateParams returns a set of cloudformation.Parameter suitable for
+// passing to UpdateStackWithContext().  In particular, if a parameter
+// is nil, UpdateParams will return a cloudformation.Parameter with
+// UsePreviousValue set to true.
+func (params *QueueUpdatableParams) UpdateParams() []*cloudformation.Parameter {
+	return []*cloudformation.Parameter{
+		mkOptionalParameter(ParamDelaySeconds, params.DelaySeconds),
+		mkOptionalParameter(ParamMaximumMessageSize, params.MaximumMessageSize),
+		mkOptionalParameter(ParamMessageRetentionPeriod, params.MessageRetentionPeriod),
+		mkOptionalParameter(ParamReceiveMessageWaitTimeSeconds, params.ReceiveMessageWaitTimeSeconds),
+		mkOptionalParameter(ParamRedriveMaxReceiveCount, params.RedriveMaxReceiveCount),
+		mkOptionalParameter(ParamVisibilityTimeout, params.VisibilityTimeout),
+	}
+}
+
+func mkOptionalParameter(name string, value *int) *cloudformation.Parameter {
+	if value == nil {
+		return &cloudformation.Parameter{
+			ParameterKey:     aws.String(name),
+			UsePreviousValue: aws.Bool(true),
+		}
+	} else {
+		return &cloudformation.Parameter{
+			ParameterKey:   aws.String(name),
+			ParameterValue: aws.String(strconv.Itoa(*value)),
+		}
+	}
+}
+
 // GetStackTemplate returns a cloudformation Template for provisioning an SQS queue
-func QueueTemplate(templateParams TemplateParams) string {
-	return fmt.Sprintf(queueTemplateFormat, templateParams.QueueName, templateParams.Tags.Name, templateParams.Tags.ServiceID, templateParams.Tags.Environment)
+func QueueTemplate(params QueueImmutableParams) string {
+	return fmt.Sprintf(queueTemplateFormat, params.QueueName, params.Tags.Name, params.Tags.ServiceID, params.Tags.Environment)
 }
