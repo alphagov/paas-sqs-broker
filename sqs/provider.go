@@ -1,10 +1,12 @@
 package sqs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 )
 
 var (
@@ -152,6 +155,18 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		SecondaryQueueURL: getStackOutput(queueStack, OutputSecondaryQueueURL),
 	}
 
+	if len(bindData.Details.RawParameters) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(bindData.Details.RawParameters))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&params); err != nil {
+			return nil, apiresponses.NewFailureResponse(
+				err,
+				http.StatusBadRequest,
+				"bad-json-format",
+			)
+		}
+	}
+
 	tmpl, err := UserTemplate(params)
 	if err != nil {
 		return nil, err
@@ -168,6 +183,9 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		StackName:    aws.String(s.getStackName(bindData.BindingID)),
 	})
 	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == "AlreadyExistsException" {
+			return nil, apiresponses.ErrBindingAlreadyExists
+		}
 		return nil, err
 	}
 
