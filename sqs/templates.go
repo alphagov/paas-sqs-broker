@@ -112,28 +112,20 @@ Resources:
 Outputs:
   PrimaryQueueARN:
     Description: Primary queue ARN
-    Export:
-      Name: {{.QueueName}}-PrimaryQueueARN
     Value:
       Fn::GetAtt:
       - PrimaryQueue
       - Arn
   PrimaryQueueURL:
     Description: Primary queue URL
-    Export:
-      Name: {{.QueueName}}-PrimaryQueueURL
     Value: !Ref PrimaryQueue
   SecondaryQueueARN:
     Description: Secondary queue ARN
-    Export:
-      Name: {{.QueueName}}-SecondaryQueueARN
     Value:
       Fn::GetAtt:
       - SecondaryQueue
       - Arn
   SecondaryQueueURL:
     Description: Secondary queue URL
-    Export:
-      Name: {{.QueueName}}-SecondaryQueueURL
     Value: !Ref SecondaryQueue
 `
