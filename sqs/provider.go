@@ -136,7 +136,7 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		return nil, err // should this be async and checked later
 	}
 
-	params := UserParams{
+	userTemplate := UserTemplateBuilder{
 		BindingID:           bindData.BindingID,
 		ResourcePrefix:      s.ResourcePrefix,
 		PermissionsBoundary: s.PermissionsBoundary,
@@ -155,7 +155,7 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 	if len(bindData.Details.RawParameters) > 0 {
 		decoder := json.NewDecoder(bytes.NewReader(bindData.Details.RawParameters))
 		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&params); err != nil {
+		if err := decoder.Decode(&userTemplate); err != nil {
 			return nil, apiresponses.NewFailureResponse(
 				err,
 				http.StatusBadRequest,
@@ -164,19 +164,14 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		}
 	}
 
-	tmpl, err := UserTemplate(params)
-	if err != nil {
-		return nil, err
-	}
-
-	yaml, err := tmpl.YAML()
+	tmpl, err := userTemplate.Build()
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
-		TemplateBody: aws.String(string(yaml)),
+		TemplateBody: aws.String(tmpl),
 		StackName:    aws.String(s.getStackName(bindData.BindingID)),
 	})
 	if err != nil {

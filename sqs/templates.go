@@ -133,3 +133,63 @@ Outputs:
     Description: Secondary queue URL
     Value: !Ref SecondaryQueue
 `
+
+// userTemplateFormat is a raw text/template for generating a
+// CloudFormation template for an IAM User with permission to access a
+// particular SQS queue.  It expects to be given a UserTemplateBuilder
+// struct.
+const userTemplateFormat = `
+AWSTemplateFormatVersion: 2010-09-09
+Outputs:
+  CredentialsARN:
+    Description: Path to the binding credentials
+    Value:
+      Ref: BindingCredentials
+Resources:
+  BindingCredentials:
+    Properties:
+      Description: Binding credentials
+      Name: '{{ .ResourcePrefix }}-{{ .BindingID }}'
+      SecretString:
+        Fn::Sub: '{{ .CredentialsJSON }}'
+    Type: AWS::SecretsManager::Secret
+  IAMAccessKey:
+    Properties:
+      Serial: 1
+      Status: Active
+      UserName:
+        Ref: IAMUser
+    Type: AWS::IAM::AccessKey
+  IAMPolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+{{ range $action := .AccessPolicyActions }}
+          - {{ $action }}
+{{ end }}
+          Effect: Allow
+          Resource:
+          - "{{ .PrimaryQueueARN }}"
+          - "{{ .SecondaryQueueARN }}"
+        Version: 2012-10-17
+      PolicyName: '{{ .ResourcePrefix }}-{{ .BindingID }}'
+      Users:
+      - Ref: IAMUser
+    Type: AWS::IAM::Policy
+  IAMUser:
+    Properties:
+      Path: /{{ .ResourcePrefix }}/
+{{ if .PermissionsBoundary }}
+      PermissionsBoundary: {{ .PermissionsBoundary }}
+{{ end }}
+      UserName: binding-{{ .BindingID }}
+{{ if .Tags }}
+      Tags:
+{{ range $key, $value := .Tags }}
+      - Key: {{ $key }}
+        Value: {{ $value }}
+{{ end }}
+{{ end }}
+    Type: AWS::IAM::User
+`

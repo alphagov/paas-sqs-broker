@@ -1,16 +1,13 @@
 package sqs
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"text/template"
 
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
-
-	goformation "github.com/awslabs/goformation/v4/cloudformation"
-	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
-	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
-	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 )
 
 const (
@@ -27,13 +24,12 @@ const (
 type AccessPolicy = string
 
 const (
-    AccessPolicyFull AccessPolicy = "full"
-    AccessPolicyProducer AccessPolicy = "producer"
-    AccessPolicyConsumer AccessPolicy = "consumer"
+	AccessPolicyFull     AccessPolicy = "full"
+	AccessPolicyProducer AccessPolicy = "producer"
+	AccessPolicyConsumer AccessPolicy = "consumer"
 )
 
-
-type UserParams struct {
+type UserTemplateBuilder struct {
 	BindingID           string            `json:"-"`
 	ResourcePrefix      string            `json:"-"`
 	UserPath            string            `json:"-"`
@@ -44,6 +40,7 @@ type UserParams struct {
 	Tags                map[string]string `json:"-"`
 	PermissionsBoundary string            `json:"-"`
 	AccessPolicy        AccessPolicy      `json:"access_policy"`
+	AccessPolicyActions []string
 }
 
 type Credentials struct {
@@ -54,40 +51,7 @@ type Credentials struct {
 	SecondaryQueueURL  string `json:"secondary_queue_url"`
 }
 
-func UserTemplate(params UserParams) (*goformation.Template, error) {
-	template := goformation.NewTemplate()
-
-	tags := []goformationtags.Tag{}
-	for k, v := range params.Tags {
-		tags = append(tags, goformationtags.Tag{
-			Key:   k,
-			Value: v,
-		})
-	}
-
-	if params.AccessPolicy == "" {
-		params.AccessPolicy = "full"
-	}
-
-	cannedPolicy, err := getCannedAccessPolicy(params.AccessPolicy)
-	if err != nil {
-		return nil, err
-	}
-
-	policy := PolicyDocument{
-		Version: "2012-10-17",
-		Statement: []PolicyStatement{
-			{
-				Effect: "Allow",
-				Action: cannedPolicy,
-				Resource: []string{
-					params.PrimaryQueueARN,
-					params.SecondaryQueueARN,
-				},
-			},
-		},
-	}
-
+func (builder UserTemplateBuilder) CredentialsJSON() (string, error) {
 	// this is a template representing the json credential for the binding.
 	// the values get interpolated with values from cloudformation
 	// once they are available.
@@ -99,137 +63,76 @@ func UserTemplate(params UserParams) (*goformation.Template, error) {
 		AWSAccessKeyID:     fmt.Sprintf("${%s}", ResourceAccessKey),
 		AWSSecretAccessKey: fmt.Sprintf("${%s.SecretAccessKey}", ResourceAccessKey),
 		AWSRegion:          "${AWS::Region}",
-		PrimaryQueueURL:    params.PrimaryQueueURL,
-		SecondaryQueueURL:  params.SecondaryQueueURL,
+		PrimaryQueueURL:    builder.PrimaryQueueURL,
+		SecondaryQueueURL:  builder.SecondaryQueueURL,
 	}
 	credentialsTemplate, err := json.Marshal(credentialsPlaceholders)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
+	return string(credentialsTemplate), nil
+}
 
-	template.Resources[ResourceUser] = &goformationiam.User{
-		UserName:            fmt.Sprintf("binding-%s", params.BindingID),
-		Path:                fmt.Sprintf("/%s/", params.ResourcePrefix),
-		Tags:                tags,
-		PermissionsBoundary: params.PermissionsBoundary,
+func (builder UserTemplateBuilder) Build() (string, error) {
+	if builder.AccessPolicy == "" {
+		builder.AccessPolicy = "full"
 	}
-
-	template.Resources[ResourceAccessKey] = &goformationiam.AccessKey{
-		Serial:   1,
-		Status:   "Active",
-		UserName: goformation.Ref(ResourceUser),
+	var err error
+	builder.AccessPolicyActions, err = builder.GetAccessPolicy()
+	if err != nil {
+		return "", err
 	}
-
-	template.Resources[ResourcePolicy] = &goformationiam.Policy{
-		PolicyName:     fmt.Sprintf("%s-%s", params.ResourcePrefix, params.BindingID),
-		PolicyDocument: policy,
-		Users: []string{
-			goformation.Ref(ResourceUser),
-		},
+	t, err := template.New("user-template").Parse(userTemplateFormat)
+	if err != nil {
+		return "", err
 	}
+	buf := new(bytes.Buffer)
 
-	template.Resources[ResourceCredentials] = &goformationsecretsmanager.Secret{
-		Description:  "Binding credentials",
-		Name:         fmt.Sprintf("%s-%s", params.ResourcePrefix, params.BindingID),
-		SecretString: goformation.Sub(credentialsTemplate),
+	err = t.Execute(buf, builder)
+	if err != nil {
+		return "", err
 	}
-
-	template.Outputs[OutputCredentialsARN] = goformation.Output{
-		Description: "Path to the binding credentials",
-		Value:       goformation.Ref(ResourceCredentials),
-		Export: goformation.Export{
-			Name: fmt.Sprintf("%s-%s", params.BindingID, OutputCredentialsARN), // export should not be required, this is a goformation bug
-		},
-	}
-
-	return template, nil
+	return buf.String(), nil
 }
 
-// helpers for building iam documents in cloudformation
+func (builder UserTemplateBuilder) GetAccessPolicy() ([]string, error) {
+	switch builder.AccessPolicy {
+	case AccessPolicyFull:
+		return []string{
+			"sqs:ChangeMessageVisibility",
+			"sqs:DeleteMessage",
+			"sqs:GetQueueAttributes",
+			"sqs:GetQueueUrl",
+			"sqs:ListDeadLetterSourceQueues",
+			"sqs:ListQueueTags",
+			"sqs:PurgeQueue",
+			"sqs:ReceiveMessage",
+			"sqs:SendMessage",
+		}, nil
+	case AccessPolicyProducer:
+		return []string{
+			"sqs:GetQueueAttributes",
+			"sqs:GetQueueUrl",
+			"sqs:ListDeadLetterSourceQueues",
+			"sqs:ListQueueTags",
+			"sqs:SendMessage",
+		}, nil
+	case AccessPolicyConsumer:
+		return []string{
+			"sqs:DeleteMessage",
+			"sqs:GetQueueAttributes",
+			"sqs:GetQueueUrl",
+			"sqs:ListDeadLetterSourceQueues",
+			"sqs:ListQueueTags",
+			"sqs:PurgeQueue",
+			"sqs:ReceiveMessage",
+		}, nil
 
-type PolicyDocument struct {
-	Version   string
-	Statement []PolicyStatement
-}
-
-type PolicyStatement struct {
-	Effect   string
-	Action   []string
-	Resource []string
-}
-
-type AssumeRolePolicyDocument struct {
-	Version   string
-	Statement []AssumeRolePolicyStatement
-}
-
-type AssumeRolePolicyStatement struct {
-	Effect    string
-	Principal PolicyPrincipal
-	Action    []string
-	Condition PolicyCondition `json:"Condition,omitempty"`
-}
-
-type PolicyPrincipal struct {
-	AWS       []string `json:"AWS,omitempty"`
-	Federated []string `json:"Federated,omitempty"`
-}
-
-type PolicyCondition struct {
-	StringEquals map[string]string `json:"StringEquals,omitempty"`
-}
-
-func NewRolePolicyDocument(resources, actions []string) PolicyDocument {
-	return PolicyDocument{
-		Version: "2012-10-17",
-		Statement: []PolicyStatement{
-			{
-				Effect:   "Allow",
-				Action:   actions,
-				Resource: resources,
-			},
-		},
-	}
-}
-
-func getCannedAccessPolicy(policyName string) ([]string, error) {
-	switch policyName {
-		case AccessPolicyFull:
-			return []string{
-				"sqs:ChangeMessageVisibility",
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-				"sqs:SendMessage",
-			}, nil
-		case AccessPolicyProducer:
-			return []string{
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:SendMessage",
-			}, nil
-		case AccessPolicyConsumer:
-			return []string{
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-			}, nil
-
-		default:
-			return nil, apiresponses.NewFailureResponse(
-				fmt.Errorf("unknown access policy %#v", policyName),
-				http.StatusBadRequest,
-				"unknown-access-policy",
-			)
+	default:
+		return nil, apiresponses.NewFailureResponse(
+			fmt.Errorf("unknown access policy %#v", builder.AccessPolicy),
+			http.StatusBadRequest,
+			"unknown-access-policy",
+		)
 	}
 }
