@@ -73,7 +73,9 @@ Resources:
   PrimaryQueue:
     Properties:
       QueueName: {{.PrimaryQueueName}}
+{{ if .FIFOQueue }}
       FifoQueue: {{.FIFOQueue}}
+{{ end }}
       Tags:
       - Key: QueueType
         Value: Primary
@@ -98,7 +100,9 @@ Resources:
   SecondaryQueue:
     Properties:
       QueueName: {{.SecondaryQueueName}}
+{{ if .FIFOQueue }}
       FifoQueue: {{.FIFOQueue}}
+{{ end }}
       Tags:
       - Key: QueueType
         Value: Secondary
