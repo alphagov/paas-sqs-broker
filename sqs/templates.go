@@ -186,10 +186,12 @@ Resources:
       PermissionsBoundary: {{ .PermissionsBoundary }}
 {{ end }}
       UserName: binding-{{ .BindingID }}
+{{ if .Tags }}
       Tags:
 {{ range $key, $value := .Tags }}
       - Key: {{ $key }}
         Value: {{ $value }}
+{{ end }}
 {{ end }}
     Type: AWS::IAM::User
 `
