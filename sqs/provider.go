@@ -50,9 +50,6 @@ type Provider struct {
 }
 
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
-	if provisionData.Plan.Name == "fifo" {
-		return nil, apiresponses.NewFailureResponseBuilder(errors.New("FIFO plan unimplemented"), http.StatusNotImplemented, "not-implemented").WithEmptyResponse().Build()
-	}
 	queueTemplate := QueueTemplateBuilder{}
 	queueTemplate.QueueName = s.getStackName(provisionData.InstanceID)
 	queueTemplate.Tags = map[string]string{
@@ -60,6 +57,9 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 		"Service":     "sqs",
 		"ServiceID":   provisionData.Details.ServiceID,
 		"Environment": s.Environment,
+	}
+	if provisionData.Plan.Name == "fifo" {
+		queueTemplate.FIFOQueue = true
 	}
 
 	tmpl, err := queueTemplate.Build()

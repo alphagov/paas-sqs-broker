@@ -72,7 +72,10 @@ Conditions:
 Resources:
   PrimaryQueue:
     Properties:
-      QueueName: {{.QueueName}}-pri
+      QueueName: {{.PrimaryQueueName}}
+{{ if .FIFOQueue }}
+      FifoQueue: {{.FIFOQueue}}
+{{ end }}
       Tags:
       - Key: QueueType
         Value: Primary
@@ -96,7 +99,10 @@ Resources:
     Type: AWS::SQS::Queue
   SecondaryQueue:
     Properties:
-      QueueName: {{.QueueName}}-sec
+      QueueName: {{.SecondaryQueueName}}
+{{ if .FIFOQueue }}
+      FifoQueue: {{.FIFOQueue}}
+{{ end }}
       Tags:
       - Key: QueueType
         Value: Secondary
@@ -110,28 +116,20 @@ Resources:
 Outputs:
   PrimaryQueueARN:
     Description: Primary queue ARN
-    Export:
-      Name: {{.QueueName}}-PrimaryQueueARN
     Value:
       Fn::GetAtt:
       - PrimaryQueue
       - Arn
   PrimaryQueueURL:
     Description: Primary queue URL
-    Export:
-      Name: {{.QueueName}}-PrimaryQueueURL
     Value: !Ref PrimaryQueue
   SecondaryQueueARN:
     Description: Secondary queue ARN
-    Export:
-      Name: {{.QueueName}}-SecondaryQueueARN
     Value:
       Fn::GetAtt:
       - SecondaryQueue
       - Arn
   SecondaryQueueURL:
     Description: Secondary queue URL
-    Export:
-      Name: {{.QueueName}}-SecondaryQueueURL
     Value: !Ref SecondaryQueue
 `

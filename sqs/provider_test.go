@@ -107,7 +107,7 @@ var _ = Describe("Provider", func() {
 			})
 		})
 
-		XContext("FIFO queues", func() {
+		Context("FIFO queues", func() {
 			BeforeEach(func() {
 				provisionData = provideriface.ProvisionData{
 					InstanceID: "a5da1b66-da42-4c83-b806-f287bc589ab3",

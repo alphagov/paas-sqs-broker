@@ -32,17 +32,40 @@ var _ = Describe("QueueTemplateBuilder", func() {
 		Expect(ok).To(BeTrue())
 	})
 
-	Context("when QueueName is set", func() {
+	Context("when QueueName is set for a non-FIFO queue", func() {
 		BeforeEach(func() {
 			builder.QueueName = "q-name-a"
 		})
-		It("should set primary queue name", func() {
+		It("should set primary queue name with suitable suffix", func() {
 			Expect(primaryQueue.QueueName).To(HavePrefix("q-name-a"))
 			Expect(primaryQueue.QueueName).To(HaveSuffix("-pri"))
 		})
-		It("should set secondary queue name", func() {
+		It("should set secondary queue name with suitable suffix", func() {
 			Expect(secondaryQueue.QueueName).To(HavePrefix("q-name-a"))
 			Expect(secondaryQueue.QueueName).To(HaveSuffix("-sec"))
+		})
+		It("should not break the 80 character limit for queue name", func() {
+			Expect(len(primaryQueue.QueueName)).To(BeNumerically("<", 80))
+			Expect(len(secondaryQueue.QueueName)).To(BeNumerically("<", 80))
+		})
+	})
+
+	Context("when QueueName is set for a FIFO queue", func() {
+		BeforeEach(func() {
+			builder.QueueName = "q-name-a"
+			builder.FIFOQueue = true
+		})
+		It("should set primary queue name with a .fifo extension", func() {
+			Expect(primaryQueue.QueueName).To(HavePrefix("q-name-a"))
+			Expect(primaryQueue.QueueName).To(HaveSuffix("-pri.fifo"))
+		})
+		It("should set secondary queue name with a .fifo extension", func() {
+			Expect(secondaryQueue.QueueName).To(HavePrefix("q-name-a"))
+			Expect(secondaryQueue.QueueName).To(HaveSuffix("-sec.fifo"))
+		})
+		It("should not break the 80 character limit for queue name", func() {
+			Expect(len(primaryQueue.QueueName)).To(BeNumerically("<", 80))
+			Expect(len(secondaryQueue.QueueName)).To(BeNumerically("<", 80))
 		})
 	})
 
@@ -108,9 +131,9 @@ var _ = Describe("QueueTemplateBuilder", func() {
 		Expect(secondaryQueue.FifoQueue).To(BeFalse())
 	})
 
-	XContext("when IsFIFO is set", func() {
+	Context("when FIFO queue is configured", func() {
 		BeforeEach(func() {
-			// builder.IsFIFO = true
+			builder.FIFOQueue = true
 		})
 		It("should set queue FifoQueue from spec", func() {
 			Expect(primaryQueue.FifoQueue).To(BeTrue())
@@ -119,7 +142,8 @@ var _ = Describe("QueueTemplateBuilder", func() {
 	})
 
 	It("should have outputs for connection details", func() {
-		text, err := sqs.QueueTemplateBuilder{}.Build()
+		builder := &sqs.QueueTemplateBuilder{}
+		text, err := builder.Build()
 		Expect(err).ToNot(HaveOccurred())
 		t, err := goformation.ParseYAML([]byte(text))
 		Expect(err).ToNot(HaveOccurred())

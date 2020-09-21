@@ -2,6 +2,7 @@ package sqs
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
 	"text/template"
 
@@ -34,17 +35,43 @@ const (
 	OutputSecondaryQueueARN = "SecondaryQueueARN"
 )
 
+const (
+	ExtFIFO     = ".fifo"
+	ExtStandard = ""
+)
+
 // A QueueTemplateBuilder is responsible for building the
 // CloudFormation YAML template.  You can configure it to control
 // exactly how the template is built.
 type QueueTemplateBuilder struct {
 	QueueName string
+	FIFOQueue bool
 	Tags      map[string]string
+}
+
+// PrimaryQueueName builds the name for the primary queue
+func (params *QueueTemplateBuilder) PrimaryQueueName() string {
+	return fmt.Sprintf("%s-pri%s", params.QueueName, params.ext())
+}
+
+// SecondaryQueueName builds the name for the secondary queue
+func (params *QueueTemplateBuilder) SecondaryQueueName() string {
+	return fmt.Sprintf("%s-sec%s", params.QueueName, params.ext())
+}
+
+// ext returns the suffix for the queue names. this is important because
+// FIFO queues require a sepecific suffix
+func (params *QueueTemplateBuilder) ext() string {
+	if params.FIFOQueue {
+		return ExtFIFO
+	} else {
+		return ExtStandard
+	}
 }
 
 // Build returns a cloudformation Template for provisioning an SQS
 // queue
-func (params QueueTemplateBuilder) Build() (string, error) {
+func (params *QueueTemplateBuilder) Build() (string, error) {
 	t, err := template.New("queue-template").Parse(queueTemplateFormat)
 	if err != nil {
 		return "", err
