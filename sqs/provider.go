@@ -152,7 +152,7 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		SecondaryQueueURL: getStackOutput(queueStack, OutputSecondaryQueueURL),
 	}
 
-	if len(bindData.Details.RawParameters) > 0 {
+	if bindData.Details.RawParameters != nil {
 		decoder := json.NewDecoder(bytes.NewReader(bindData.Details.RawParameters))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&params); err != nil {
