@@ -36,11 +36,11 @@ var _ = Describe("QueueTemplateBuilder", func() {
 		BeforeEach(func() {
 			builder.QueueName = "q-name-a"
 		})
-		It("should set primary queue name with a .stnd extension", func() {
+		It("should set primary queue name with suitable suffix", func() {
 			Expect(primaryQueue.QueueName).To(HavePrefix("q-name-a"))
 			Expect(primaryQueue.QueueName).To(HaveSuffix("-pri"))
 		})
-		It("should set secondary queue name with a .stnd extension", func() {
+		It("should set secondary queue name with suitable suffix", func() {
 			Expect(secondaryQueue.QueueName).To(HavePrefix("q-name-a"))
 			Expect(secondaryQueue.QueueName).To(HaveSuffix("-sec"))
 		})
