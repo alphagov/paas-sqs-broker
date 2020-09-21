@@ -135,8 +135,11 @@ To run integration tests against a real AWS environment you must have AWS
 credentials in your environment and you must set the ENABLE_INTEGRATION_TESTS
 environment variable to `true`.
 
+It may also be benefical to use the ginko test runner to enable parallel tests
+when working with the integration tests:
+
 ```
-ENABLE_INTEGRATION_TESTS=true go test -v ./...
+ENABLE_INTEGRATION_TESTS=true go run github.com/onsi/ginkgo/ginkgo -v -mod=vendor -nodes=2 -stream ./...
 ```
 
 If you have access to the GOV.UK PaaS build CI then you test with a permission boundary set using:
