@@ -7,6 +7,7 @@ import (
 
 	. "github.com/alphagov/paas-sqs-broker/testing/matchers"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -27,10 +28,9 @@ const (
 var _ = DescribeIntegrationTest("broker integration tests", func() {
 
 	var (
-		instanceID      string
-		provisionValues brokertesting.RequestBody
-		bindingID       string
-		binding         struct {
+		instanceID string
+		bindingID  string
+		binding    struct {
 			Credentials struct {
 				AWSAccessKeyID     string `json:"aws_access_key_id"`
 				AWSSecretAccessKey string `json:"aws_secret_access_key"`
@@ -44,220 +44,235 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 	BeforeEach(func() {
 		instanceID = uuid.NewV4().String()
 		bindingID = uuid.NewV4().String()
+	})
 
-		provisionValues = brokertesting.RequestBody{
+	DescribeTable("should manage the lifecycle of an SQS queue",
+		func(provisionValues brokertesting.RequestBody, testMessagePayload *awssqs.SendMessageInput) {
+
+			By("provisioning", func() {
+				res := broker.Provision(
+					instanceID,
+					provisionValues,
+					ASYNC_ALLOWED,
+				)
+
+				Expect(res.Code).To(Equal(http.StatusAccepted))
+			})
+
+			By("waiting for provision process to complete", func() {
+				provisionState := lastServiceOperationChan(
+					broker,
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					sqs.ProvisionOperation,
+				)
+
+				Eventually(provisionState).Should(BeSuccessState())
+			})
+
+			defer By("waiting for deprovision process to complete", func() {
+				deprovisionState := lastServiceOperationChan(
+					broker,
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					sqs.DeprovisionOperation,
+				)
+
+				Eventually(deprovisionState).Should(BeSuccessState())
+			})
+
+			defer By("deprovisioning", func() {
+				res := broker.Deprovision(
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					ASYNC_ALLOWED,
+				)
+
+				Expect(res.Code).To(Equal(http.StatusAccepted))
+			})
+
+			By("binding", func() {
+				res := broker.Bind(instanceID, bindingID, brokertesting.RequestBody{
+					ServiceID:        provisionValues.ServiceID,
+					PlanID:           provisionValues.PlanID,
+					OrganizationGUID: "some customer",
+				}, ASYNC_ALLOWED)
+
+				Expect(res.Code).To(Equal(http.StatusAccepted))
+			})
+
+			By("waiting for bind operation to complete", func() {
+				bindingState := lastBindingOperationChan(
+					broker,
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					bindingID,
+					sqs.BindOperation,
+				)
+
+				Eventually(bindingState).Should(BeSuccessState())
+			})
+
+			defer By("waiting for unbind operation to complete", func() {
+				unbindingState := lastBindingOperationChan(
+					broker,
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					bindingID,
+					sqs.UnbindOperation,
+				)
+
+				Eventually(unbindingState).Should(BeSuccessState())
+			})
+
+			defer By("unbinding", func() {
+				res := broker.Unbind(
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					bindingID,
+					ASYNC_ALLOWED,
+				)
+
+				Expect(res.Code).To(Equal(http.StatusAccepted))
+			})
+
+			By("fetching the binding credentials", func() {
+				res := broker.GetBinding(
+					instanceID,
+					bindingID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+				)
+				Expect(res.Code).To(Equal(http.StatusOK))
+				err := json.NewDecoder(res.Result().Body).Decode(&binding)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(binding.Credentials.AWSAccessKeyID).ToNot(BeEmpty())
+				Expect(binding.Credentials.AWSSecretAccessKey).ToNot(BeEmpty())
+				Expect(binding.Credentials.AWSRegion).ToNot(BeEmpty())
+				Expect(binding.Credentials.PrimaryQueueURL).ToNot(BeEmpty())
+				Expect(binding.Credentials.SecondaryQueueURL).ToNot(BeEmpty())
+			})
+
+			By("checking we see expected configuration", func() {
+				output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
+					QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
+					AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				// We haven't set redrive_max_receive_count so there shouldn't be a redrive policy
+				Expect(output.Attributes).ToNot(HaveKey(awssqs.QueueAttributeNameRedrivePolicy))
+				Expect(output.Attributes).To(
+					HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
+			})
+
+			By("updating", func() {
+				res := broker.Update(instanceID, brokertesting.RequestBody{
+					ServiceID: provisionValues.ServiceID,
+					PlanID:    provisionValues.PlanID,
+					Parameters: &brokertesting.ConfigurationValues{
+						"delay_seconds":             30,
+						"redrive_max_receive_count": 3,
+					},
+					PreviousValues: &provisionValues,
+				}, ASYNC_ALLOWED)
+
+				Expect(res.Code).To(Equal(http.StatusAccepted))
+			})
+
+			By("waiting for update process to complete", func() {
+				updateState := lastServiceOperationChan(
+					broker,
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					sqs.UpdateOperation,
+				)
+
+				Eventually(updateState).Should(BeSuccessState())
+			})
+
+			By("using binding credentials to access the service", func() {
+				sess := session.Must(session.NewSession(&aws.Config{
+					Region: aws.String(binding.Credentials.AWSRegion),
+					Credentials: credentials.NewStaticCredentials(
+						binding.Credentials.AWSAccessKeyID,
+						binding.Credentials.AWSSecretAccessKey,
+						"",
+					),
+				}))
+				sqsClient := awssqs.New(sess)
+
+				testMessagePayload.QueueUrl = aws.String(binding.Credentials.PrimaryQueueURL)
+				_, err := sqsClient.SendMessage(testMessagePayload)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = sqsClient.ReceiveMessage(&awssqs.ReceiveMessageInput{
+					QueueUrl:            aws.String(binding.Credentials.PrimaryQueueURL),
+					MaxNumberOfMessages: aws.Int64(10),
+				})
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			By("checking we see expected new configuration", func() {
+				output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
+					QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
+					AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(output.Attributes).To(
+					HaveKeyWithValue(awssqs.QueueAttributeNameDelaySeconds, aws.String("30")))
+				Expect(output.Attributes).To(
+					HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
+
+				Expect(output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]).ToNot(BeNil())
+
+				var redrivePolicy map[string]interface{}
+				Expect(
+					json.Unmarshal(
+						[]byte(*output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]),
+						&redrivePolicy,
+					),
+				).To(Succeed())
+				Expect(redrivePolicy).To(And(
+					HaveKeyWithValue("deadLetterTargetArn", ContainSubstring("-sec")),
+					// JSON unmarshals numbers float64 rather than int, so
+					// we use BeNumerically() to be numeric-type-agnostic
+					HaveKeyWithValue("maxReceiveCount", BeNumerically("==", 3)),
+				))
+			})
+		},
+
+		Entry("standard-queue", brokertesting.RequestBody{
 			ServiceID:        "uuid-1",
-			PlanID:           "uuid-2", // standard (non-FIFO) queue plan
+			PlanID:           "uuid-2", // standard plan - see fixtures/config.json
 			OrganizationGUID: uuid.NewV4().String(),
 			Parameters: &brokertesting.ConfigurationValues{
 				"message_retention_period": 60,
 			},
-		}
-	})
+		}, &awssqs.SendMessageInput{
+			MessageBody: aws.String("Hello World."),
+		}),
 
-	It("should manage the lifecycle of an SQS queue", func() {
-
-		By("provisioning", func() {
-			res := broker.Provision(
-				instanceID,
-				provisionValues,
-				ASYNC_ALLOWED,
-			)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("waiting for provision process to complete", func() {
-			provisionState := lastServiceOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				sqs.ProvisionOperation,
-			)
-
-			Eventually(provisionState).Should(BeSuccessState())
-		})
-
-		defer By("waiting for deprovision process to complete", func() {
-			deprovisionState := lastServiceOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				sqs.DeprovisionOperation,
-			)
-
-			Eventually(deprovisionState).Should(BeSuccessState())
-		})
-
-		defer By("deprovisioning", func() {
-			res := broker.Deprovision(
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				ASYNC_ALLOWED,
-			)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("binding", func() {
-			res := broker.Bind(instanceID, bindingID, brokertesting.RequestBody{
-				ServiceID:        provisionValues.ServiceID,
-				PlanID:           provisionValues.PlanID,
-				OrganizationGUID: "some customer",
-			}, ASYNC_ALLOWED)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("waiting for bind operation to complete", func() {
-			bindingState := lastBindingOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				bindingID,
-				sqs.BindOperation,
-			)
-
-			Eventually(bindingState).Should(BeSuccessState())
-		})
-
-		defer By("waiting for unbind operation to complete", func() {
-			unbindingState := lastBindingOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				bindingID,
-				sqs.UnbindOperation,
-			)
-
-			Eventually(unbindingState).Should(BeSuccessState())
-		})
-
-		defer By("unbinding", func() {
-			res := broker.Unbind(
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				bindingID,
-				ASYNC_ALLOWED,
-			)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("fetching the binding credentials", func() {
-			res := broker.GetBinding(
-				instanceID,
-				bindingID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-			)
-			Expect(res.Code).To(Equal(http.StatusOK))
-			err := json.NewDecoder(res.Result().Body).Decode(&binding)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(binding.Credentials.AWSAccessKeyID).ToNot(BeEmpty())
-			Expect(binding.Credentials.AWSSecretAccessKey).ToNot(BeEmpty())
-			Expect(binding.Credentials.AWSRegion).ToNot(BeEmpty())
-			Expect(binding.Credentials.PrimaryQueueURL).ToNot(BeEmpty())
-			Expect(binding.Credentials.SecondaryQueueURL).ToNot(BeEmpty())
-		})
-
-		By("checking we see expected configuration", func() {
-			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
-				QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
-				AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
-			})
-			Expect(err).ToNot(HaveOccurred())
-			// We haven't set redrive_max_receive_count so there shouldn't be a redrive policy
-			Expect(output.Attributes).ToNot(HaveKey(awssqs.QueueAttributeNameRedrivePolicy))
-			Expect(output.Attributes).To(
-				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
-		})
-
-		By("updating", func() {
-			res := broker.Update(instanceID, brokertesting.RequestBody{
-				ServiceID: provisionValues.ServiceID,
-				PlanID:    provisionValues.PlanID,
-				Parameters: &brokertesting.ConfigurationValues{
-					"delay_seconds":             30,
-					"redrive_max_receive_count": 3,
-				},
-				PreviousValues: &provisionValues,
-			}, ASYNC_ALLOWED)
-
-			Expect(res.Code).To(Equal(http.StatusAccepted))
-		})
-
-		By("waiting for update process to complete", func() {
-			updateState := lastServiceOperationChan(
-				broker,
-				instanceID,
-				provisionValues.ServiceID,
-				provisionValues.PlanID,
-				sqs.UpdateOperation,
-			)
-
-			Eventually(updateState).Should(BeSuccessState())
-		})
-
-		By("using binding credentials to access the service", func() {
-			sess := session.Must(session.NewSession(&aws.Config{
-				Region: aws.String(binding.Credentials.AWSRegion),
-				Credentials: credentials.NewStaticCredentials(
-					binding.Credentials.AWSAccessKeyID,
-					binding.Credentials.AWSSecretAccessKey,
-					"",
-				),
-			}))
-			sqsClient := awssqs.New(sess)
-
-			_, err := sqsClient.SendMessage(&awssqs.SendMessageInput{
-				MessageBody: aws.String("Hello World."),
-				QueueUrl:    aws.String(binding.Credentials.PrimaryQueueURL),
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = sqsClient.ReceiveMessage(&awssqs.ReceiveMessageInput{
-				QueueUrl:            aws.String(binding.Credentials.PrimaryQueueURL),
-				MaxNumberOfMessages: aws.Int64(10),
-			})
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		By("checking we see expected new configuration", func() {
-			output, err := sqsAdminClient.GetQueueAttributes(&awssqs.GetQueueAttributesInput{
-				QueueUrl:       aws.String(binding.Credentials.PrimaryQueueURL),
-				AttributeNames: []*string{aws.String(awssqs.QueueAttributeNameAll)},
-			})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(output.Attributes).To(
-				HaveKeyWithValue(awssqs.QueueAttributeNameDelaySeconds, aws.String("30")))
-			Expect(output.Attributes).To(
-				HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
-
-			Expect(output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]).ToNot(BeNil())
-
-			var redrivePolicy map[string]interface{}
-			Expect(
-				json.Unmarshal(
-					[]byte(*output.Attributes[awssqs.QueueAttributeNameRedrivePolicy]),
-					&redrivePolicy,
-				),
-			).To(Succeed())
-			Expect(redrivePolicy).To(And(
-				HaveKeyWithValue("deadLetterTargetArn", ContainSubstring("-sec")),
-				// JSON unmarshals numbers float64 rather than int, so
-				// we use BeNumerically() to be numeric-type-agnostic
-				HaveKeyWithValue("maxReceiveCount", BeNumerically("==", 3))))
-		})
-	})
-
+		Entry("fifo-queue", brokertesting.RequestBody{
+			ServiceID:        "uuid-1",
+			PlanID:           "uuid-3", // fifo plan - see fixtures/config.json
+			OrganizationGUID: uuid.NewV4().String(),
+			Parameters: &brokertesting.ConfigurationValues{
+				"message_retention_period": 60,
+			},
+		}, &awssqs.SendMessageInput{
+			MessageGroupId:         aws.String("test-group"),
+			MessageDeduplicationId: aws.String("test-msg-id"),
+			MessageBody:            aws.String("Hello World."),
+		}),
+	)
 })
 
 // lastServiceOperationChan returns a channel that repeatedly receives the latest provision

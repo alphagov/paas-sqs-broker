@@ -72,7 +72,8 @@ Conditions:
 Resources:
   PrimaryQueue:
     Properties:
-      QueueName: {{.QueueName}}-pri
+      QueueName: {{.PrimaryQueueName}}
+      FifoQueue: {{.FIFOQueue}}
       Tags:
       - Key: QueueType
         Value: Primary
@@ -96,7 +97,8 @@ Resources:
     Type: AWS::SQS::Queue
   SecondaryQueue:
     Properties:
-      QueueName: {{.QueueName}}-sec
+      QueueName: {{.SecondaryQueueName}}
+      FifoQueue: {{.FIFOQueue}}
       Tags:
       - Key: QueueType
         Value: Secondary
