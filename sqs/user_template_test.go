@@ -5,21 +5,20 @@ import (
 
 	"github.com/alphagov/paas-sqs-broker/sqs"
 	goformation "github.com/awslabs/goformation/v4"
-	goformationcfn "github.com/awslabs/goformation/v4/cloudformation"
 	goformationiam "github.com/awslabs/goformation/v4/cloudformation/iam"
 	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 	"github.com/awslabs/goformation/v4/intrinsics"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
 )
 
 var _ = Describe("UserTemplate", func() {
 	var user *goformationiam.User
-	var accessKey *goformationiam.AccessKey
 	var policy *goformationiam.Policy
 	var builder sqs.UserTemplateBuilder
-	var template *goformationcfn.Template
+	var rawText string
 
 	BeforeEach(func() {
 		builder = sqs.UserTemplateBuilder{}
@@ -27,9 +26,9 @@ var _ = Describe("UserTemplate", func() {
 
 	JustBeforeEach(func() {
 		var err error
-		text, err := builder.Build()
+		rawText, err = builder.Build()
 		Expect(err).ToNot(HaveOccurred())
-		template, err := goformation.ParseYAML([]byte(text))
+		template, err := goformation.ParseYAML([]byte(rawText))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.User{})))
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationiam.AccessKey{})))
@@ -37,8 +36,6 @@ var _ = Describe("UserTemplate", func() {
 		Expect(template.Resources).To(ContainElement(BeAssignableToTypeOf(&goformationsecretsmanager.Secret{})))
 		var ok bool
 		user, ok = template.Resources[sqs.ResourceUser].(*goformationiam.User)
-		Expect(ok).To(BeTrue())
-		accessKey, ok = template.Resources[sqs.ResourceAccessKey].(*goformationiam.AccessKey)
 		Expect(ok).To(BeTrue())
 		policy, ok = template.Resources[sqs.ResourcePolicy].(*goformationiam.Policy)
 		Expect(ok).To(BeTrue())
@@ -55,9 +52,7 @@ var _ = Describe("UserTemplate", func() {
 	})
 
 	It("should create a template for a json blob containing provisioned credentials", func() {
-		out, err := template.JSON()
-		Expect(err).ToNot(HaveOccurred())
-		processed, err := intrinsics.ProcessJSON(out, nil)
+		processed, err := intrinsics.ProcessYAML([]byte(rawText), nil)
 		Expect(err).ToNot(HaveOccurred())
 		var result map[string]interface{}
 		err = json.Unmarshal(processed, &result)
@@ -114,15 +109,16 @@ var _ = Describe("UserTemplate", func() {
 			builder.AccessPolicy = "producer"
 		})
 		It("should use the 'producer' canned access policy", func() {
-			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
-			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
-			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:SendMessage",
-			))
+			Expect(policy.PolicyDocument).To(
+				HaveKeyWithValue("Statement", ConsistOf(
+					HaveKeyWithValue("Action", ConsistOf(
+						"sqs:GetQueueAttributes",
+						"sqs:GetQueueUrl",
+						"sqs:ListDeadLetterSourceQueues",
+						"sqs:ListQueueTags",
+						"sqs:SendMessage",
+					)),
+				)))
 		})
 	})
 
@@ -131,17 +127,18 @@ var _ = Describe("UserTemplate", func() {
 			builder.AccessPolicy = "consumer"
 		})
 		It("should use the 'consumer' canned access policy", func() {
-			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
-			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
-			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-			))
+			Expect(policy.PolicyDocument).To(
+				HaveKeyWithValue("Statement", ConsistOf(
+					HaveKeyWithValue("Action", ConsistOf(
+						"sqs:DeleteMessage",
+						"sqs:GetQueueAttributes",
+						"sqs:GetQueueUrl",
+						"sqs:ListDeadLetterSourceQueues",
+						"sqs:ListQueueTags",
+						"sqs:PurgeQueue",
+						"sqs:ReceiveMessage",
+					)),
+				)))
 		})
 	})
 
@@ -150,19 +147,20 @@ var _ = Describe("UserTemplate", func() {
 			builder.AccessPolicy = ""
 		})
 		It("should use the 'full' canned access policy", func() {
-			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
-			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
-			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
-				"sqs:ChangeMessageVisibility",
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-				"sqs:SendMessage",
-			))
+			Expect(policy.PolicyDocument).To(
+				HaveKeyWithValue("Statement", ConsistOf(
+					HaveKeyWithValue("Action", ConsistOf(
+						"sqs:ChangeMessageVisibility",
+						"sqs:DeleteMessage",
+						"sqs:GetQueueAttributes",
+						"sqs:GetQueueUrl",
+						"sqs:ListDeadLetterSourceQueues",
+						"sqs:ListQueueTags",
+						"sqs:PurgeQueue",
+						"sqs:ReceiveMessage",
+						"sqs:SendMessage",
+					)),
+				)))
 		})
 	})
 
@@ -171,7 +169,7 @@ var _ = Describe("UserTemplate", func() {
 			AccessPolicy: "bananas",
 		}.Build()
 
-		Expect(t).To(BeZero())
+		Expect(t).To(BeEmpty())
 		Expect(err).To(MatchError("unknown access policy \"bananas\""))
 	})
 
@@ -181,28 +179,35 @@ var _ = Describe("UserTemplate", func() {
 			builder.SecondaryQueueARN = "qwe"
 		})
 		It("the policy is scoped to the queue ARNs", func() {
-			Expect(policy.PolicyDocument).To(BeAssignableToTypeOf(sqs.PolicyDocument{}))
-			policyDoc := policy.PolicyDocument.(sqs.PolicyDocument)
-			Expect(policyDoc.Statement).To(HaveLen(1))
-			Expect(policyDoc.Statement[0].Effect).To(Equal("Allow"))
-			Expect(policyDoc.Statement[0].Action).To(ConsistOf(
-				"sqs:ChangeMessageVisibility",
-				"sqs:DeleteMessage",
-				"sqs:GetQueueAttributes",
-				"sqs:GetQueueUrl",
-				"sqs:ListDeadLetterSourceQueues",
-				"sqs:ListQueueTags",
-				"sqs:PurgeQueue",
-				"sqs:ReceiveMessage",
-				"sqs:SendMessage",
-			))
-			Expect(policyDoc.Statement[0].Resource).To(ConsistOf("abc", "qwe"))
+			Expect(policy.PolicyDocument).To(
+				HaveKeyWithValue("Statement", ConsistOf(
+					And(
+						HaveKeyWithValue("Effect", "Allow"),
+						HaveKeyWithValue("Resource", ConsistOf("abc", "qwe")),
+						HaveKeyWithValue("Action", ConsistOf(
+							"sqs:ChangeMessageVisibility",
+							"sqs:DeleteMessage",
+							"sqs:GetQueueAttributes",
+							"sqs:GetQueueUrl",
+							"sqs:ListDeadLetterSourceQueues",
+							"sqs:ListQueueTags",
+							"sqs:PurgeQueue",
+							"sqs:ReceiveMessage",
+							"sqs:SendMessage",
+						))),
+				)))
 		})
 	})
 
 	It("should create an active access key", func() {
-		Expect(accessKey.Status).To(Equal("Active"))
-		Expect(accessKey.UserName).ToNot(BeEmpty())
+		var result map[string]interface{}
+		Expect(yaml.Unmarshal([]byte(rawText), &result)).To(Succeed())
+		resources := result["Resources"].(map[interface{}]interface{})
+		resource := resources[sqs.ResourceAccessKey].(map[interface{}]interface{})
+		properties := resource["Properties"].(map[interface{}]interface{})
+
+		Expect(properties).To(HaveKeyWithValue("Status", "Active"))
+		Expect(properties).To(HaveKeyWithValue("UserName", HaveKeyWithValue("Ref", sqs.ResourceUser)))
 	})
 
 	It("should have an output for the secretsmanager path to credentials", func() {
