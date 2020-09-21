@@ -69,8 +69,14 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 
 	params := QueueParams{}
 	if provisionData.Details.RawParameters != nil {
-		if err = json.Unmarshal(provisionData.Details.RawParameters, &params); err != nil {
-			return nil, err
+		decoder := json.NewDecoder(bytes.NewReader(provisionData.Details.RawParameters))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&params); err != nil {
+			return nil, apiresponses.NewFailureResponse(
+				err,
+				http.StatusBadRequest,
+				"bad-json-format",
+			)
 		}
 	}
 
@@ -81,6 +87,9 @@ func (s *Provider) Provision(ctx context.Context, provisionData provideriface.Pr
 		Parameters:   params.CreateParams(),
 	})
 	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == "AlreadyExistsException" {
+			return nil, apiresponses.ErrInstanceAlreadyExists
+		}
 		return nil, err
 	}
 
