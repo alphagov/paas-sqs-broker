@@ -40,6 +40,7 @@ type UserTemplateBuilder struct {
 	Tags                map[string]string `json:"-"`
 	PermissionsBoundary string            `json:"-"`
 	AccessPolicy        AccessPolicy      `json:"access_policy"`
+	AccessPolicyActions []string
 }
 
 type Credentials struct {
@@ -73,6 +74,14 @@ func (builder UserTemplateBuilder) CredentialsJSON() (string, error) {
 }
 
 func (builder UserTemplateBuilder) Build() (string, error) {
+	if builder.AccessPolicy == "" {
+		builder.AccessPolicy = "full"
+	}
+	var err error
+	builder.AccessPolicyActions, err = builder.GetAccessPolicy()
+	if err != nil {
+		return "", err
+	}
 	t, err := template.New("user-template").Parse(userTemplateFormat)
 	if err != nil {
 		return "", err

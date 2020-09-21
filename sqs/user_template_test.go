@@ -171,7 +171,7 @@ var _ = Describe("UserTemplate", func() {
 			AccessPolicy: "bananas",
 		}.Build()
 
-		Expect(t).To(BeNil())
+		Expect(t).To(BeZero())
 		Expect(err).To(MatchError("unknown access policy \"bananas\""))
 	})
 

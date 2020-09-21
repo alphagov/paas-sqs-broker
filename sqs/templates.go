@@ -167,7 +167,7 @@ Resources:
       PolicyDocument:
         Statement:
         - Action:
-{{ range $action := .GetAccessPolicy }}
+{{ range $action := .AccessPolicyActions }}
           - {{ $action }}
 {{ end }}
           Effect: Allow
