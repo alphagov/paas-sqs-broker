@@ -41,12 +41,13 @@ var (
 )
 
 type Provider struct {
-	Environment         string // Name of environment to tag resources with
-	Client              Client // AWS SDK compatible client
-	ResourcePrefix      string // AWS resources with be named with this prefix
-	PermissionsBoundary string // IAM users created on bind will have this boundary
-	Timeout             time.Duration
-	Logger              lager.Logger
+	Environment          string // Name of environment to tag resources with
+	Client               Client // AWS SDK compatible client
+	ResourcePrefix       string // AWS resources with be named with this prefix
+	AdditionalUserPolicy string // IAM users created on bind will have this policy attached
+	PermissionsBoundary  string // IAM users created on bind will have this boundary
+	Timeout              time.Duration
+	Logger               lager.Logger
 }
 
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
@@ -146,9 +147,10 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 	}
 
 	userTemplate := UserTemplateBuilder{
-		BindingID:           bindData.BindingID,
-		ResourcePrefix:      s.ResourcePrefix,
-		PermissionsBoundary: s.PermissionsBoundary,
+		BindingID:            bindData.BindingID,
+		ResourcePrefix:       s.ResourcePrefix,
+		AdditionalUserPolicy: s.AdditionalUserPolicy,
+		PermissionsBoundary:  s.PermissionsBoundary,
 		Tags: map[string]string{
 			"Name":        bindData.BindingID,
 			"Service":     "sqs",

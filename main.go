@@ -63,11 +63,12 @@ func main() {
 			SecretsManager: secretsmanager.New(sess, cfg),
 			CloudFormation: cloudformation.New(sess, cfg),
 		},
-		Environment:         sqsClientConfig.DeployEnvironment,
-		ResourcePrefix:      sqsClientConfig.ResourcePrefix,
-		PermissionsBoundary: sqsClientConfig.PermissionsBoundary,
-		Timeout:             sqsClientConfig.Timeout,
-		Logger:              logger,
+		Environment:          sqsClientConfig.DeployEnvironment,
+		ResourcePrefix:       sqsClientConfig.ResourcePrefix,
+		AdditionalUserPolicy: sqsClientConfig.AdditionalUserPolicy,
+		PermissionsBoundary:  sqsClientConfig.PermissionsBoundary,
+		Timeout:              sqsClientConfig.Timeout,
+		Logger:               logger,
 	}
 
 	serviceBroker, err := broker.New(config, sqsProvider, logger)

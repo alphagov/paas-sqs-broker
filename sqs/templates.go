@@ -183,6 +183,10 @@ Resources:
 {{ if .PermissionsBoundary }}
       PermissionsBoundary: {{ .PermissionsBoundary }}
 {{ end }}
+{{ if .AdditionalUserPolicy }}
+      ManagedPolicyArns:
+      - "{{ .AdditionalUserPolicy }}"
+{{ end }}
       UserName: binding-{{ .BindingID }}
 {{ if .Tags }}
       Tags:

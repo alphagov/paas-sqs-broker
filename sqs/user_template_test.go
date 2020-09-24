@@ -164,6 +164,21 @@ var _ = Describe("UserTemplate", func() {
 		})
 	})
 
+	Context("when additional user policy is not set", func() {
+		It("should not set an additional policy", func() {
+			Expect(user.ManagedPolicyArns).To(BeEmpty())
+		})
+	})
+
+	Context("when additional user policy is set", func() {
+		BeforeEach(func() {
+			builder.AdditionalUserPolicy = "lololol"
+		})
+		It("should set an additional policy", func() {
+			Expect(user.ManagedPolicyArns).To(ConsistOf("lololol"))
+		})
+	})
+
 	It("should return an error for unknown access policies", func() {
 		t, err := sqs.UserTemplateBuilder{
 			AccessPolicy: "bananas",
