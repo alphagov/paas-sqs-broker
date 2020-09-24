@@ -791,6 +791,10 @@ var _ = Describe("Provider", func() {
 				Expect(user.PermissionsBoundary).To(BeEmpty())
 			})
 
+			It("should not set additional policies by default", func() {
+				Expect(user.ManagedPolicyArns).To(BeEmpty())
+			})
+
 			It("should extract arns from queue stack outputs", func() {
 				Expect(policy.PolicyDocument).To(
 					HaveKeyWithValue("Statement", ContainElement(
@@ -805,6 +809,15 @@ var _ = Describe("Provider", func() {
 				})
 				It("should create user with a permission boundary if provided", func() {
 					Expect(user.PermissionsBoundary).To(Equal("arn:fake:permission:boundary"))
+				})
+			})
+
+			Context("when additional user policy is provided", func() {
+				BeforeEach(func() {
+					sqsProvider.AdditionalUserPolicy = "arn:fake:managed:policy"
+				})
+				It("should create user with a permission boundary if provided", func() {
+					Expect(user.ManagedPolicyArns).To(ConsistOf("arn:fake:managed:policy"))
 				})
 			})
 

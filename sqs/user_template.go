@@ -30,17 +30,18 @@ const (
 )
 
 type UserTemplateBuilder struct {
-	BindingID           string            `json:"-"`
-	ResourcePrefix      string            `json:"-"`
-	UserPath            string            `json:"-"`
-	PrimaryQueueURL     string            `json:"-"`
-	PrimaryQueueARN     string            `json:"-"`
-	SecondaryQueueURL   string            `json:"-"`
-	SecondaryQueueARN   string            `json:"-"`
-	Tags                map[string]string `json:"-"`
-	PermissionsBoundary string            `json:"-"`
-	AccessPolicy        AccessPolicy      `json:"access_policy"`
-	AccessPolicyActions []string
+	BindingID            string            `json:"-"`
+	ResourcePrefix       string            `json:"-"`
+	UserPath             string            `json:"-"`
+	PrimaryQueueURL      string            `json:"-"`
+	PrimaryQueueARN      string            `json:"-"`
+	SecondaryQueueURL    string            `json:"-"`
+	SecondaryQueueARN    string            `json:"-"`
+	Tags                 map[string]string `json:"-"`
+	AdditionalUserPolicy string            `json:"-"`
+	PermissionsBoundary  string            `json:"-"`
+	AccessPolicy         AccessPolicy      `json:"access_policy"`
+	AccessPolicyActions  []string
 }
 
 type Credentials struct {

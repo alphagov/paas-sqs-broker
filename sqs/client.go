@@ -20,11 +20,17 @@ type Client interface {
 }
 
 type Config struct {
-	AWSRegion           string `json:"aws_region"`
-	ResourcePrefix      string `json:"resource_prefix"`
-	DeployEnvironment   string `json:"deploy_env"`
-	Timeout             time.Duration
-	PermissionsBoundary string `json:"permissions_boundary"`
+	AWSRegion         string `json:"aws_region"`
+	ResourcePrefix    string `json:"resource_prefix"`
+	DeployEnvironment string `json:"deploy_env"`
+	Timeout           time.Duration
+	// AdditionalUserPolicy is optionally the ARN of an IAM Policy that
+	// will be attached to each IAM User created by the broker.  The
+	// intended use case is, for example, to restrict all access to be
+	// from a particular VPC, source IP, or via a particular VPC
+	// Endpoint.
+	AdditionalUserPolicy string `json:"additional_user_policy"`
+	PermissionsBoundary  string `json:"permissions_boundary"`
 }
 
 func NewConfig(configJSON []byte) (*Config, error) {

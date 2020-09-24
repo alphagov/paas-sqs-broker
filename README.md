@@ -108,6 +108,32 @@ A policy must exist with at least these permissions:
 ```
 And this must match the name used in the iam:PermissionsBoundary condition above (SQSBrokerUserPermissionsBoundary in this example).
 
+Additionally, you may provide an additional IAM Policy that will be
+attached to all IAM Users managed by this broker.  For example, you
+could use the following policy to restrict access to a particular VPC:
+
+
+```json
+{
+   "Version": "2012-10-17",
+   "Id": "Policy1415115909153",
+   "Statement": [
+     {
+       "Sid": "Access-to-specific-VPC-only",
+       "Principal": "*",
+       "Action": "*",
+       "Effect": "Deny",
+       "Resource": "*",
+       "Condition": {
+         "StringNotEquals": {
+           "aws:SourceVpc": "vpc-111bbb22"
+         }
+       }
+     }
+   ]
+}
+```
+
 ### Configuration options
 
 The following options can be added to the configuration file:
@@ -120,7 +146,8 @@ The following options can be added to the configuration file:
 | `log_level`                      | debug         | string | debug,info,error,fatal                                                     |
 | `aws_region`                     | empty string  | string | any [AWS region](https://docs.aws.amazon.com/general/latest/gr/rande.html) |
 | `resource_prefix`                | empty string  | string | any                                                                        |
-| `permissions_boundary`                | empty string  | string | any                                                                        |
+| `additional_user_policy`         | empty string  | string | an ARN of an IAM Policy                                                    |
+| `permissions_boundary`           | empty string  | string | an ARN of an IAM Policy                                                    |
 | `deploy_env`                     | empty string  | string |                                                                            |
 
 ## Running tests
