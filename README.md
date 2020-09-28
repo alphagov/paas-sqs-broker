@@ -110,7 +110,8 @@ And this must match the name used in the iam:PermissionsBoundary condition above
 
 Additionally, you may provide an additional IAM Policy that will be
 attached to all IAM Users managed by this broker.  For example, you
-could use the following policy to restrict access to a particular VPC:
+could use the following policy to restrict access to a particular set
+of egress IPs:
 
 
 ```json
@@ -125,8 +126,8 @@ could use the following policy to restrict access to a particular VPC:
        "Effect": "Deny",
        "Resource": "*",
        "Condition": {
-         "StringNotEquals": {
-           "aws:SourceVpc": "vpc-111bbb22"
+         "NotIpAddress": {
+           "aws:SourceIp": ["192.0.2.1", "192.0.2.7"]
          }
        }
      }
