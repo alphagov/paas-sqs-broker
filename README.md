@@ -95,17 +95,13 @@ A policy must exist with at least these permissions:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "sqs:SendMessage",
-        "sqs:ReceiveMessage",
-        "sqs:GetQueueAttributes",
-        "sqs:DeleteMessage"
-      ],
+      "Action": "sqs:*",
       "Resource": "arn:aws:sqs:*:*:paas-sqs-broker-*"
     }
   ]
 }
 ```
+
 And this must match the name used in the iam:PermissionsBoundary condition above (SQSBrokerUserPermissionsBoundary in this example).
 
 Additionally, you may provide an additional IAM Policy that will be
