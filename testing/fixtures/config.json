@@ -4,6 +4,7 @@
   "log_level": "debug",
   "aws_region": "eu-west-2",
   "resource_prefix": "test-paas-sqs-broker",
+  "context_timeout_seconds": 300,
   "iam_ip_restriction_policy_arn": "__SET_IN_TEST__",
   "deploy_env": "testdev",
   "catalog": {
