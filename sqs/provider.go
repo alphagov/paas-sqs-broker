@@ -35,7 +35,7 @@ var (
 	// ErrStackNotFound returned when stack does not exist, or has been deleted
 	ErrStackNotFound = fmt.Errorf("cloudformation stack does not exist")
 	// ErrBindingDeadlineExeceeded indicates that syncronous binding took too long
-	ErrBindingDeadlineExeceeded = fmt.Errorf("timeout waiting for the binding stack to reach a success or failed state")
+	ErrBindingDeadlineExceeded = fmt.Errorf("timeout waiting for the binding stack to reach a success or failed state")
 	// PollingInterval is the duration between calls to check state when waiting for stack status to complete
 	PollingInterval      = time.Second * 5
 	ProvisionOperation   = "provision"
@@ -247,7 +247,7 @@ func (s *Provider) waitForBindingOperationComplete(ctx context.Context, stackNam
 	for {
 		select {
 		case <-ctx.Done():
-			return ErrBindingDeadlineExeceeded
+			return ErrBindingDeadlineExceeded
 		case <-time.After(PollingInterval):
 			lastOperation, err := s.lastBindingOperation(ctx, stackName, BindOperation)
 			if err != nil {
