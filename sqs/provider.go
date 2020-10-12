@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/alphagov/paas-service-broker-base/broker"
 	provideriface "github.com/alphagov/paas-service-broker-base/provider"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -20,10 +19,6 @@ import (
 	"github.com/pivotal-cf/brokerapi/domain"
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 )
-
-func init() {
-	broker.DefaultContextTimeout = 5 * time.Minute
-}
 
 var (
 	// capabilities required by cloudformation
