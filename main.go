@@ -5,7 +5,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"time"
 
 	"fmt"
 	"net"
@@ -21,10 +20,6 @@ import (
 )
 
 var configFilePath string
-
-func init() {
-	broker.DefaultContextTimeout = 5 * time.Minute
-}
 
 func main() {
 	flag.StringVar(&configFilePath, "config", "", "Location of the config file")
