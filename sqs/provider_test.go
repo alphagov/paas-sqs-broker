@@ -657,8 +657,9 @@ var _ = Describe("Provider", func() {
 			)
 
 			unbindData := provideriface.UnbindData{
-				InstanceID: "09E1993E-62E2-4040-ADF2-4D3EC741EFE6",
-				BindingID:  "c6ea1339-7ade-4952-9247-e419b59e7b67",
+				InstanceID:   "09E1993E-62E2-4040-ADF2-4D3EC741EFE6",
+				BindingID:    "c6ea1339-7ade-4952-9247-e419b59e7b67",
+				AsyncAllowed: true,
 			}
 			_, err := sqsProvider.Unbind(context.Background(), unbindData)
 			Expect(err).NotTo(HaveOccurred())
@@ -674,8 +675,9 @@ var _ = Describe("Provider", func() {
 			}, nil)
 
 			unbindData := provideriface.UnbindData{
-				InstanceID: "09E1993E-62E2-4040-ADF2-4D3EC741EFE6",
-				BindingID:  "c6ea1339-7ade-4952-9247-e419b59e7b67",
+				InstanceID:   "09E1993E-62E2-4040-ADF2-4D3EC741EFE6",
+				BindingID:    "c6ea1339-7ade-4952-9247-e419b59e7b67",
+				AsyncAllowed: true,
 			}
 			spec, err := sqsProvider.Unbind(context.Background(), unbindData)
 			Expect(err).NotTo(HaveOccurred())
@@ -701,8 +703,9 @@ var _ = Describe("Provider", func() {
 
 		BeforeEach(func() {
 			bindData = provideriface.BindData{
-				InstanceID: "a5da1b66-da42-4c83-b806-f287bc589ab3",
-				BindingID:  "f56687df-e3d0-452a-9755-1a6d6d9e248f",
+				InstanceID:   "a5da1b66-da42-4c83-b806-f287bc589ab3",
+				BindingID:    "f56687df-e3d0-452a-9755-1a6d6d9e248f",
+				AsyncAllowed: true,
 			}
 			fakeCfnClient.DescribeStacksWithContextReturnsOnCall(0, &cloudformation.DescribeStacksOutput{
 				Stacks: []*cloudformation.Stack{

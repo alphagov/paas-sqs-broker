@@ -22,15 +22,17 @@ import (
 )
 
 const (
-	ASYNC_ALLOWED = true
+	ASYNC = true
+	SYNC  = false
 )
 
 var _ = DescribeIntegrationTest("broker integration tests", func() {
 
 	var (
-		instanceID string
-		bindingID  string
-		binding    struct {
+		instanceID     string
+		asyncBindingID string
+		syncBindingID  string
+		binding        struct {
 			Credentials struct {
 				AWSAccessKeyID     string `json:"aws_access_key_id"`
 				AWSSecretAccessKey string `json:"aws_secret_access_key"`
@@ -43,7 +45,8 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 
 	BeforeEach(func() {
 		instanceID = uuid.NewV4().String()
-		bindingID = uuid.NewV4().String()
+		asyncBindingID = uuid.NewV4().String()
+		syncBindingID = uuid.NewV4().String()
 	})
 
 	DescribeTable("should manage the lifecycle of an SQS queue",
@@ -53,7 +56,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 				res := broker.Provision(
 					instanceID,
 					provisionValues,
-					ASYNC_ALLOWED,
+					ASYNC,
 				)
 
 				Expect(res.Code).To(Equal(http.StatusAccepted))
@@ -88,18 +91,18 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 					instanceID,
 					provisionValues.ServiceID,
 					provisionValues.PlanID,
-					ASYNC_ALLOWED,
+					ASYNC,
 				)
 
 				Expect(res.Code).To(Equal(http.StatusAccepted))
 			})
 
 			By("binding", func() {
-				res := broker.Bind(instanceID, bindingID, brokertesting.RequestBody{
+				res := broker.Bind(instanceID, asyncBindingID, brokertesting.RequestBody{
 					ServiceID:        provisionValues.ServiceID,
 					PlanID:           provisionValues.PlanID,
 					OrganizationGUID: "some customer",
-				}, ASYNC_ALLOWED)
+				}, ASYNC)
 
 				Expect(res.Code).To(Equal(http.StatusAccepted))
 			})
@@ -110,7 +113,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 					instanceID,
 					provisionValues.ServiceID,
 					provisionValues.PlanID,
-					bindingID,
+					asyncBindingID,
 					sqs.BindOperation,
 				)
 
@@ -123,7 +126,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 					instanceID,
 					provisionValues.ServiceID,
 					provisionValues.PlanID,
-					bindingID,
+					asyncBindingID,
 					sqs.UnbindOperation,
 				)
 
@@ -135,8 +138,8 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 					instanceID,
 					provisionValues.ServiceID,
 					provisionValues.PlanID,
-					bindingID,
-					ASYNC_ALLOWED,
+					asyncBindingID,
+					ASYNC,
 				)
 
 				Expect(res.Code).To(Equal(http.StatusAccepted))
@@ -145,7 +148,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 			By("fetching the binding credentials", func() {
 				res := broker.GetBinding(
 					instanceID,
-					bindingID,
+					asyncBindingID,
 					provisionValues.ServiceID,
 					provisionValues.PlanID,
 				)
@@ -172,6 +175,35 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 					HaveKeyWithValue(awssqs.QueueAttributeNameMessageRetentionPeriod, aws.String("60")))
 			})
 
+			By("creating a service-key (sync-bind)", func() {
+				res := broker.Bind(instanceID, syncBindingID, brokertesting.RequestBody{
+					ServiceID:        provisionValues.ServiceID,
+					PlanID:           provisionValues.PlanID,
+					OrganizationGUID: "some customer",
+				}, SYNC)
+
+				Expect(res.Code).To(Equal(http.StatusCreated))
+				err := json.NewDecoder(res.Result().Body).Decode(&binding)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(binding.Credentials.AWSAccessKeyID).ToNot(BeEmpty())
+				Expect(binding.Credentials.AWSSecretAccessKey).ToNot(BeEmpty())
+				Expect(binding.Credentials.AWSRegion).ToNot(BeEmpty())
+				Expect(binding.Credentials.PrimaryQueueURL).ToNot(BeEmpty())
+				Expect(binding.Credentials.SecondaryQueueURL).ToNot(BeEmpty())
+			})
+
+			defer By("deleting a service-key (sync-unbind)", func() {
+				res := broker.Unbind(
+					instanceID,
+					provisionValues.ServiceID,
+					provisionValues.PlanID,
+					asyncBindingID,
+					SYNC,
+				)
+
+				Expect(res.Code).To(Equal(http.StatusOK))
+			})
+
 			By("updating", func() {
 				res := broker.Update(instanceID, brokertesting.RequestBody{
 					ServiceID: provisionValues.ServiceID,
@@ -181,7 +213,7 @@ var _ = DescribeIntegrationTest("broker integration tests", func() {
 						"redrive_max_receive_count": 3,
 					},
 					PreviousValues: &provisionValues,
-				}, ASYNC_ALLOWED)
+				}, ASYNC)
 
 				Expect(res.Code).To(Equal(http.StatusAccepted))
 			})

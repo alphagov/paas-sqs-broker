@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -29,10 +28,11 @@ var (
 	// NoExistErrMatch is a string to match if stack does not exist
 	NoExistErrMatch = "does not exist"
 	// ErrStackNotFound returned when stack does not exist, or has been deleted
-	ErrStackNotFound      = fmt.Errorf("cloudformation stack does not exist")
-	ErrUpdateNotSupported = errors.New("Updating the SQS queue is currently not supported")
-	// PollingInterval is the duration between calls to check state when waiting for apply/destroy to complete
-	PollingInterval      = time.Second * 15
+	ErrStackNotFound = fmt.Errorf("cloudformation stack does not exist")
+	// ErrBindingDeadlineExeceeded indicates that syncronous binding took too long
+	ErrBindingDeadlineExceeded = fmt.Errorf("timeout waiting for the binding stack to reach a success or failed state")
+	// PollingInterval is the duration between calls to check state when waiting for stack status to complete
+	PollingInterval      = time.Second * 5
 	ProvisionOperation   = "provision"
 	DeprovisionOperation = "deprovision"
 	UpdateOperation      = "update"
@@ -180,10 +180,11 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		return nil, err
 	}
 
+	bindingStackName := s.getStackName(bindData.BindingID)
 	_, err = s.Client.CreateStackWithContext(ctx, &cloudformation.CreateStackInput{
 		Capabilities: capabilities,
 		TemplateBody: aws.String(tmpl),
-		StackName:    aws.String(s.getStackName(bindData.BindingID)),
+		StackName:    aws.String(bindingStackName),
 	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == "AlreadyExistsException" {
@@ -192,10 +193,71 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		return nil, err
 	}
 
+	if !bindData.AsyncAllowed {
+		return s.getBindingSync(ctx, bindingStackName)
+	}
+
 	return &domain.Binding{
 		IsAsync:       true,
 		OperationData: BindOperation,
 	}, nil
+}
+
+// getBindingSync will fetch the binding credentials for the given binding
+// cloudformation stack name. It will block until the stack reports it is
+// in either a success or failed state.
+func (s *Provider) getBindingSync(ctx context.Context, bindingStackName string) (*domain.Binding, error) {
+
+	// catch and attempt to tidy up failed binding stacks
+	destroyFailedBinding := true
+	defer func() {
+		if destroyFailedBinding {
+			go s.tryDestroyStack(bindingStackName)
+		}
+	}()
+
+	// wait for the stack to settle
+	err := s.waitForBindingOperationComplete(ctx, bindingStackName)
+	if err != nil {
+		return nil, err
+	}
+	// fetch the credentials
+	binding, err := s.getBinding(ctx, bindingStackName)
+	if err != nil {
+		return nil, err
+	}
+	// mark as valid to disable clean up
+	destroyFailedBinding = false
+
+	return &domain.Binding{
+		OperationData: BindOperation,
+		Credentials:   binding.Credentials,
+	}, nil
+}
+
+// waitForBindingOperationComplete will block until the cloudformation
+// stack referenced by name is in a success or failed state, the context is
+// canceled or the is an error returned from cloudformation
+func (s *Provider) waitForBindingOperationComplete(ctx context.Context, stackName string) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ErrBindingDeadlineExceeded
+		case <-time.After(PollingInterval):
+			lastOperation, err := s.lastBindingOperation(ctx, stackName, BindOperation)
+			if err != nil {
+				return err
+			}
+			switch lastOperation.State {
+			case domain.Succeeded:
+				return nil
+			case domain.Failed:
+				return fmt.Errorf("%s", lastOperation.Description)
+			default:
+				continue
+			}
+		}
+	}
 }
 
 func (s *Provider) Unbind(ctx context.Context, unbindData provideriface.UnbindData) (*domain.UnbindSpec, error) {
@@ -228,7 +290,7 @@ func (s *Provider) Unbind(ctx context.Context, unbindData provideriface.UnbindDa
 
 	return &domain.UnbindSpec{
 		OperationData: UnbindOperation,
-		IsAsync:       true,
+		IsAsync:       unbindData.AsyncAllowed,
 	}, nil
 }
 
@@ -296,9 +358,13 @@ func (s *Provider) LastOperation(ctx context.Context, lastOperationData provider
 
 func (s *Provider) LastBindingOperation(ctx context.Context, lastBindingOperationData provideriface.LastBindingOperationData) (*domain.LastOperation, error) {
 	stackName := s.getStackName(lastBindingOperationData.BindingID)
+	return s.lastBindingOperation(ctx, stackName, lastBindingOperationData.PollDetails.OperationData)
+}
+
+func (s *Provider) lastBindingOperation(ctx context.Context, stackName string, opData string) (*domain.LastOperation, error) {
 	stack, err := s.getStack(ctx, stackName)
 	if err == ErrStackNotFound {
-		if lastBindingOperationData.PollDetails.OperationData == UnbindOperation {
+		if opData == UnbindOperation {
 			return &domain.LastOperation{
 				State:       domain.Succeeded,
 				Description: "done",
@@ -334,6 +400,10 @@ func (s *Provider) LastBindingOperation(ctx context.Context, lastBindingOperatio
 
 func (s *Provider) GetBinding(ctx context.Context, getBindingData provideriface.GetBindData) (*domain.GetBindingSpec, error) {
 	userStackName := s.getStackName(getBindingData.BindingID)
+	return s.getBinding(ctx, userStackName)
+}
+
+func (s *Provider) getBinding(ctx context.Context, userStackName string) (*domain.GetBindingSpec, error) {
 	userStack, err := s.getStack(ctx, userStackName)
 	if err == ErrStackNotFound {
 		return nil, ErrStackNotFound
@@ -386,6 +456,23 @@ func (s *Provider) getStack(ctx context.Context, stackName string) (*cloudformat
 		return nil, fmt.Errorf("describeOutput contained a nil StackStatus, potential issue with AWS Client")
 	}
 	return state, nil
+}
+
+// tryDestroyStack removes the cloudformation stack by name. It does not use
+// the request's context to avoid the siutation where a timeout has been
+// reached and the stack needs to be cleaned up.
+// It is intended to be run as a one off goroutine at a point when no error can be returned
+// so can only log any problems.
+func (s *Provider) tryDestroyStack(stackName string) {
+	deleteCtx := context.Background()
+	deleteCtx, cancel := context.WithTimeout(deleteCtx, 60*time.Second)
+	defer cancel()
+	_, err := s.Client.DeleteStackWithContext(deleteCtx, &cloudformation.DeleteStackInput{
+		StackName: aws.String(stackName),
+	})
+	if err != nil {
+		s.Logger.Error("try-destroy-stack", err)
+	}
 }
 
 func (s *Provider) getStackName(instanceID string) string {

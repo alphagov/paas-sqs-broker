@@ -2,7 +2,7 @@ module github.com/alphagov/paas-sqs-broker
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/alphagov/paas-service-broker-base v0.8.0
+	github.com/alphagov/paas-service-broker-base v0.10.0
 	github.com/aws/aws-sdk-go v1.34.20
 	github.com/awslabs/goformation/v4 v4.15.0
 	github.com/imdario/mergo v0.3.11 // indirect
@@ -14,6 +14,7 @@ require (
 	golang.org/x/net v0.0.0-20200904194848-62affa334b73 // indirect
 	golang.org/x/sys v0.0.0-20200909081042-eff7692f9009 // indirect
 	google.golang.org/genproto v0.0.0-20200904004341-0bd0a958aa1d // indirect
+	gopkg.in/yaml.v2 v2.3.0
 )
 
 go 1.14
