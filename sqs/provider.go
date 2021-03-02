@@ -40,6 +40,14 @@ var (
 	UnbindOperation      = "unbind"
 )
 
+const (
+	TagCostAllocation = "chargeable_entity"
+	TagEnvironment    = "Environment"
+	TagName           = "Name"
+	TagService        = "Service"
+	TagServiceId      = "ServiceID"
+)
+
 type Provider struct {
 	Environment          string // Name of environment to tag resources with
 	Client               Client // AWS SDK compatible client
@@ -53,11 +61,13 @@ type Provider struct {
 func (s *Provider) Provision(ctx context.Context, provisionData provideriface.ProvisionData) (*domain.ProvisionedServiceSpec, error) {
 	queueTemplate := QueueTemplateBuilder{}
 	queueTemplate.QueueName = s.getStackName(provisionData.InstanceID)
+
 	queueTemplate.Tags = map[string]string{
-		"Name":        provisionData.InstanceID,
-		"Service":     "sqs",
-		"ServiceID":   provisionData.Details.ServiceID,
-		"Environment": s.Environment,
+		TagName:           provisionData.InstanceID,
+		TagService:        "sqs",
+		TagServiceId:      provisionData.Details.ServiceID,
+		TagEnvironment:    s.Environment,
+		TagCostAllocation: provisionData.InstanceID,
 	}
 	if provisionData.Plan.Name == "fifo" {
 		queueTemplate.FIFOQueue = true
@@ -152,10 +162,11 @@ func (s *Provider) Bind(ctx context.Context, bindData provideriface.BindData) (*
 		AdditionalUserPolicy: s.AdditionalUserPolicy,
 		PermissionsBoundary:  s.PermissionsBoundary,
 		Tags: map[string]string{
-			"Name":        bindData.BindingID,
-			"Service":     "sqs",
-			"ServiceID":   bindData.Details.ServiceID,
-			"Environment": s.Environment,
+			TagName:           bindData.BindingID,
+			TagService:        "sqs",
+			TagServiceId:      bindData.Details.ServiceID,
+			TagEnvironment:    s.Environment,
+			TagCostAllocation: bindData.InstanceID,
 		},
 		PrimaryQueueARN:   getStackOutput(queueStack, OutputPrimaryQueueARN),
 		PrimaryQueueURL:   getStackOutput(queueStack, OutputPrimaryQueueURL),
