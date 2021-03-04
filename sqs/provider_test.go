@@ -274,21 +274,30 @@ var _ = Describe("Provider", func() {
 			It("Should set appropriate tags", func() {
 				Expect(queue.Tags).To(And(
 					ContainElement(goformationtags.Tag{
-						Key:   "Name",
+						Key:   sqs.TagName,
 						Value: provisionData.InstanceID,
 					}),
 					ContainElement(goformationtags.Tag{
-						Key:   "Service",
+						Key:   sqs.TagService,
 						Value: "sqs",
 					}),
 					ContainElement(goformationtags.Tag{
-						Key:   "ServiceID",
+						Key:   sqs.TagServiceId,
 						Value: provisionData.Details.ServiceID,
 					}),
 					ContainElement(goformationtags.Tag{
-						Key:   "Environment",
+						Key:   sqs.TagEnvironment,
 						Value: "test",
 					}),
+				))
+			})
+
+			It("Should set a cost allocation tag", func() {
+				Expect(queue.Tags).To(ContainElement(
+					goformationtags.Tag{
+						Key:   sqs.TagCostAllocation,
+						Value: provisionData.InstanceID,
+					},
 				))
 			})
 
@@ -768,18 +777,26 @@ var _ = Describe("Provider", func() {
 			It("Should set appropriate tags", func() {
 				Expect(user.Tags).To(And(
 					ContainElement(goformationtags.Tag{
-						Key:   "Name",
+						Key:   sqs.TagName,
 						Value: bindData.BindingID,
 					}),
 					ContainElement(goformationtags.Tag{
-						Key:   "Service",
+						Key:   sqs.TagService,
 						Value: "sqs",
 					}),
 					ContainElement(goformationtags.Tag{
-						Key:   "Environment",
+						Key:   sqs.TagEnvironment,
 						Value: "test",
 					}),
 				))
+			})
+
+			It("Should set a cost allocation tag", func() {
+				Expect(user.Tags).To(ContainElement(
+					goformationtags.Tag{
+						Key:   sqs.TagCostAllocation,
+						Value: bindData.InstanceID,
+					}))
 			})
 
 			It("should use create user name with binding id", func() {
