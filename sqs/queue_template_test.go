@@ -5,7 +5,7 @@ import (
 	goformation "github.com/awslabs/goformation/v4"
 	goformationsqs "github.com/awslabs/goformation/v4/cloudformation/sqs"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 

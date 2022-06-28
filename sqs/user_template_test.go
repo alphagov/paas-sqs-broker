@@ -9,7 +9,7 @@ import (
 	goformationsecretsmanager "github.com/awslabs/goformation/v4/cloudformation/secretsmanager"
 	goformationtags "github.com/awslabs/goformation/v4/cloudformation/tags"
 	"github.com/awslabs/goformation/v4/intrinsics"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v2"
 )
