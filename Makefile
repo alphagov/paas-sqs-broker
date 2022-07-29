@@ -1,7 +1,7 @@
 
 .PHONY: test
 test:
-	go run github.com/onsi/ginkgo/ginkgo -v -mod=vendor -nodes=2 -stream ./...
+	ginkgo -v -r -nodes=2
 
 .PHONY: generate
 generate:
