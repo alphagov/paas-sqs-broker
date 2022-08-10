@@ -14,8 +14,6 @@ run:
     - -c
     - |
       echo "configuring integration tests..."
-      export GOPATH=$(pwd)
-      export PATH="${GOPATH}/bin:${PATH}"
 
       go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
