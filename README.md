@@ -173,3 +173,13 @@ fly -t paas-ci execute -c ci/integration.yml --input repo=.
 ```
 
 (this will upload your current modifications to concourse and execute the integration tests).
+
+## Patching an existing bosh environment
+
+If you want to patch an existing bosh environment you can run the following command:
+
+```
+make bosh_scp
+```
+
+This requires an existing bosh session to be established beforehand.

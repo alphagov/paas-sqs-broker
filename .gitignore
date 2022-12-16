@@ -2,3 +2,6 @@
 .idea
 paas-sqs-broker
 local.nix
+
+# Temporary Build Files
+amd64/*
