@@ -15,8 +15,6 @@ run:
     - |
       echo "configuring integration tests..."
 
-      go install github.com/onsi/ginkgo/v2/ginkgo@latest
-
       AWS_ACCOUNT_ID=$(curl http://169.254.169.254/latest/dynamic/instance-identity/document \
         | grep accountId \
         | awk '{print $3}' \
