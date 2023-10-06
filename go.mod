@@ -2,7 +2,7 @@ module github.com/alphagov/paas-sqs-broker
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/alphagov/paas-service-broker-base v0.10.0
+	github.com/alphagov/paas-service-broker-base v0.11.0
 	github.com/aws/aws-sdk-go v1.34.20
 	github.com/awslabs/goformation/v4 v4.15.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.3

@@ -1,6 +1,7 @@
 {
   "basic_auth_username": "username",
   "basic_auth_password": "password",
+  "host": "127.0.0.1",
   "log_level": "info",
   "aws_region": "eu-west-2",
   "resource_prefix": "paas-sqs-broker",
