@@ -139,6 +139,7 @@ The following options can be added to the configuration file:
 | -------------------------------- | ------------- | ------ | -------------------------------------------------------------------------- |
 | `basic_auth_username`            | empty string  | string | any non-empty string                                                       |
 | `basic_auth_password`            | empty string  | string | any non-empty string                                                       |
+| `host`                           | "0.0.0.0"     | string | any valid IP address                                                       |
 | `port`                           | 3000          | string | any free port                                                              |
 | `log_level`                      | debug         | string | debug,info,error,fatal                                                     |
 | `aws_region`                     | empty string  | string | any [AWS region](https://docs.aws.amazon.com/general/latest/gr/rande.html) |

@@ -26,3 +26,5 @@ run:
       echo "executing tests..."
       cd repo
       make test
+
+      ./scripts/run-broker-tls.sh
