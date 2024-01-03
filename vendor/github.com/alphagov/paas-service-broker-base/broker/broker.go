@@ -59,6 +59,31 @@ func New(config Config, serviceProvider provider.Provider, logger lager.Logger) 
 	return b, nil
 }
 
+func (b *Broker) BinderImplemented() (provider.Binder, bool) {
+	binder, ok := b.Provider.(provider.Binder)
+	return binder, ok
+}
+
+func (b *Broker) AsyncBinderImplemented() (provider.AsyncBinder, bool) {
+	asyncbinder, ok := b.Provider.(provider.AsyncBinder)
+	return asyncbinder, ok
+}
+
+func (b *Broker) ProvisionerImplemented() (provider.Provisioner, bool) {
+	provisioner, ok := b.Provider.(provider.Provisioner)
+	return provisioner, ok
+}
+
+func (b *Broker) AsyncProvisionerImplemented() (provider.AsyncProvisioner, bool) {
+	asyncprovisioner, ok := b.Provider.(provider.AsyncProvisioner)
+	return asyncprovisioner, ok
+}
+
+func (b *Broker) UpdaterImplemented() (provider.Updater, bool) {
+	updater, ok := b.Provider.(provider.Updater)
+	return updater, ok
+}
+
 func (b *Broker) Services(ctx context.Context) ([]domain.Service, error) {
 	services := []domain.Service{}
 	for _, svc := range b.config.Catalog.Catalog.Services {

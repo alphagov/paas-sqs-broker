@@ -75,6 +75,18 @@ var _ = BeforeSuite(func() {
 
 	serviceBroker, err := brokerbase.New(config, sqsProvider, logger)
 	Expect(err).ToNot(HaveOccurred())
+
+	_, asyncbinderimplemented := serviceBroker.AsyncBinderImplemented()
+	_, asyncprovisionerimplemented := serviceBroker.AsyncProvisionerImplemented()
+	_, binderimplemented := serviceBroker.BinderImplemented()
+	_, provisionerimplemented := serviceBroker.ProvisionerImplemented()
+	_, updaterimplemented := serviceBroker.UpdaterImplemented()
+	Expect(asyncbinderimplemented).To(BeTrue())
+	Expect(asyncprovisionerimplemented).To(BeTrue())
+	Expect(binderimplemented).To(BeTrue())
+	Expect(provisionerimplemented).To(BeTrue())
+	Expect(updaterimplemented).To(BeTrue())
+
 	brokerAPI := brokerbase.NewAPI(serviceBroker, logger, config)
 
 	broker = brokertesting.New(brokerapi.BrokerCredentials{
